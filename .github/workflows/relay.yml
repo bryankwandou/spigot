@@ -1,0 +1,56 @@
+name: Faucet relay
+
+# Wakes every 30 minutes. The workflow does not decide when a faucet may be
+# called — it only asks. The relay endpoint holds the cooldown state and
+# answers "not yet" for anything still inside its window plus the margin.
+#
+# A fixed eight-hour cron would drift: GitHub's scheduler runs late under load,
+# and any attempt to compensate eventually fires early. Waking often and being
+# told no costs nothing.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: faucet-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ask the relay which faucets are due
+        env:
+          RELAY_URL: ${{ secrets.RELAY_URL }}
+          RELAY_TOKEN: ${{ secrets.RELAY_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RELAY_URL:-}" ] || [ -z "${RELAY_TOKEN:-}" ]; then
+            echo "RELAY_URL or RELAY_TOKEN is missing. Nothing to do."
+            exit 0
+          fi
+
+          code=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST "$RELAY_URL/api/relay/tick" \
+            -H "Authorization: Bearer $RELAY_TOKEN" \
+            -H "Content-Type: application/json")
+
+          echo "Relay responded $code"
+          # Safe to print: the endpoint returns faucet ids, amounts, timestamps
+          # and transaction signatures. No key crosses this boundary.
+          cat response.json
+          echo
+
+          # 200 means work was done or nothing was due. 429 means we asked too
+          # early, which is a scheduling bug worth seeing but not a red run.
+          if [ "$code" = "200" ] || [ "$code" = "429" ]; then
+            exit 0
+          fi
+          exit 1

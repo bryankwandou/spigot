@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Spigot">
+  <defs>
+    <linearGradient id="sg" x1="12" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5EEAD4"/>
+      <stop offset="0.55" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="sd" x1="32" y1="42" x2="32" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="24" r="17" stroke="url(#sg)" stroke-width="5"/>
+  <g stroke="url(#sg)" stroke-width="5" stroke-linecap="round">
+    <path d="M32 12.5V19"/>
+    <path d="M21.4 30.2 27 27"/>
+    <path d="M42.6 30.2 37 27"/>
+  </g>
+  <circle cx="32" cy="24" r="4.4" fill="url(#sg)"/>
+  <path d="M32 43.5c4.6 4.6 6.9 8.1 6.9 11.1a6.9 6.9 0 0 1-13.8 0c0-3 2.3-6.5 6.9-11.1Z" fill="url(#sd)"/>
+</svg>

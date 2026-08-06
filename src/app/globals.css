@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #080b14;
+  --color-panel: #0e1422;
+  --color-edge: #1c2536;
+  --color-mist: #94a3b8;
+  --color-paper: #f1f5f9;
+  --color-aqua: #5eead4;
+  --color-sky: #38bdf8;
+  --color-indigo: #6366f1;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-stack), ui-monospace, "SFMono-Regular", monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Balances and signatures sit in columns that update live. Tabular figures
+   stop the digits shifting sideways every time a number ticks over. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, #5eead4 0%, #38bdf8 55%, #6366f1 100%);
+}
+
+.brand-text {
+  background-image: linear-gradient(135deg, #5eead4 0%, #38bdf8 55%, #6366f1 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Focus rings are visible and consistent; never removed for looks. */
+:focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
