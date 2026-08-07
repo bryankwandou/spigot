@@ -20,7 +20,11 @@ What arrives lands in one public devnet treasury. Developers take one SOL per re
 
 Rotating wallets or egress addresses to slip past a rate limit is the obvious way to make the numbers bigger. It is also the reason a project like this would deserve to be shut down, so Spigot does not do it. One identity per faucet, published limits honoured, margin added rather than shaved.
 
-The honest consequence: two of the three upstream faucets are gated by a human check on purpose, so Spigot surfaces their timers and a person clicks. Automated intake is roughly **2 SOL every 8 hours**. That is a small number, and it is the real one.
+The honest consequence, measured rather than assumed: the public devnet RPC airdrop meters by **egress IP, not by address**. Three freshly generated addresses with no transaction history were refused six times across three amounts, every one a 429 reading *"you've either reached your airdrop limit today or the airdrop faucet has run dry."*
+
+So automated intake from shared hosting is not small. It is **zero**, and adding wallets does not move it — only a different IP would, which is the line this project does not cross. The two remaining faucets are gated by a human check on purpose. Spigot surfaces their timers and a person clicks.
+
+That reframes what this repository is worth. The treasury is filled by hand and by returns; the software's contribution is knowing which faucet is ready for you right now, and not wasting your click on one that isn't.
 
 Devnet only. These tokens have no value and are not meant to acquire any.
 
