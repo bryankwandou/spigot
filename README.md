@@ -4,29 +4,49 @@
 
 <h1 align="center">Spigot</h1>
 
-<p align="center">Devnet SOL on tap.</p>
+<p align="center">Which devnet faucet is actually paying, right now.</p>
 
 ---
 
-Funding a Solana devnet wallet means visiting four sites, solving three captchas, and remembering which one you used yesterday. Spigot does that bookkeeping once, in public, so you can paste an address and get back to work.
+Devnet faucets go dry without announcing it. You open four tabs, sign in to two of them, and find out the hard way — having spent a claim to learn that there was nothing to claim. Then the next developer does the same thing an hour later, and learns the same thing, and tells nobody.
 
-## How it works
+Spigot is a place to put that one fact.
 
-A scheduled job wakes every thirty minutes and asks `/api/relay/tick` which faucets are due. The endpoint owns the clock, not the schedule — each faucet is checked against its own published cooldown plus a three-minute margin, and anything still inside its window is reported as skipped rather than attempted.
+## The measurement this is built on
 
-What arrives lands in one public devnet treasury. Developers take one SOL per request, up to five per address per day, and every payout is a signature you can look up on an explorer.
+The premise was checked before the code was written, and it changed the code.
 
-## What this does not do
+Three freshly generated addresses, no transaction history, six requests to the public devnet RPC airdrop across three amounts. Every one refused:
 
-Rotating wallets or egress addresses to slip past a rate limit is the obvious way to make the numbers bigger. It is also the reason a project like this would deserve to be shut down, so Spigot does not do it. One identity per faucet, published limits honoured, margin added rather than shaved.
+```
+429  "You've either reached your airdrop limit today or the airdrop
+      faucet has run dry. Please visit https://faucet.solana.com"
+```
 
-The honest consequence, measured rather than assumed: the public devnet RPC airdrop meters by **egress IP, not by address**. Three freshly generated addresses with no transaction history were refused six times across three amounts, every one a 429 reading *"you've either reached your airdrop limit today or the airdrop faucet has run dry."*
+The addresses were new, so the meter is not on the recipient — it is on the **egress IP**. Two consequences follow, and both are load-bearing:
 
-So automated intake from shared hosting is not small. It is **zero**, and adding wallets does not move it — only a different IP would, which is the line this project does not cross. The two remaining faucets are gated by a human check on purpose. Spigot surfaces their timers and a person clicks.
+1. **Rotating wallets cannot work.** Not "should not" — cannot. The upstream is not counting wallets. Anyone selling you a multi-wallet devnet farmer is selling a loop that returns 429 in ten different fonts.
+2. **A hosted service cannot fill a pool.** Vercel and GitHub Actions run on shared egress that thousands of others have already spent. Automated intake from there is zero.
 
-That reframes what this repository is worth. The treasury is filled by hand and by returns; the software's contribution is knowing which faucet is ready for you right now, and not wasting your click on one that isn't.
+So Spigot does not run a treasury and does not hand out SOL. It cannot, honestly, and neither can anything else that claims to.
 
-Devnet only. These tokens have no value and are not meant to acquire any.
+## What it does instead
+
+| | |
+|---|---|
+| **Live health** | Whether each faucet is paying *anyone* in the last 90 minutes, from pooled reports plus Spigot's own probe. |
+| **Your clock** | When *you* are next eligible, per faucet, kept in your browser. A faucet can be flowing and still closed to you — different question, shown separately. |
+| **One click out** | Straight to the faucet that will actually work, instead of four tabs. |
+
+The health signal is the interesting part. The knowledge already exists and is generated hundreds of times an hour; it just evaporates in individual terminals. Pooling it costs the upstream faucets nothing and saves everyone else the trip.
+
+## What it will not do
+
+- **No farming.** One identity, one request per cooldown window, three minutes of margin on top of every published limit. A 429 pushes the next window out rather than starting a retry loop.
+- **No money.** No token, no fee, no paid tier, nothing to connect a mainnet wallet to. Devnet SOL is given away free by the people who issue it; reselling it would be selling something that is not ours.
+- **No custody.** Spigot never holds funds, never asks for a private key, never signs on your behalf.
+
+Devnet only. These tokens are worth nothing and are meant to stay that way.
 
 ## Running it
 
@@ -38,33 +58,31 @@ npm run dev
 
 | Variable | What it is |
 |---|---|
-| `DATABASE_URL` | Neon Postgres. Holds the attempt log and therefore the cooldown clock. |
-| `SPIGOT_TREASURY_ADDRESS` | Public devnet address that receives and pays out. |
-| `SPIGOT_TREASURY_SECRET` | 64 bytes as a JSON array. Generate fresh; never reuse a wallet that has held mainnet funds. |
-| `RELAY_TOKEN` | Shared secret between the workflow and `/api/relay/tick`. |
+| `DATABASE_URL` | Neon Postgres. Holds the probe log and the reports. |
+| `RELAY_TOKEN` | Shared secret between the schedule and `/api/relay/tick`. |
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
 
-Tables are created on first call, so there is no separate migration step.
-
-## Deploying
-
-Push, import the repository into Vercel, and set the same variables there. Then add two repository secrets so the schedule can reach the deployment:
-
-- `RELAY_URL` — the deployment origin, no trailing slash
-- `RELAY_TOKEN` — the same value as the environment variable
-
-The workflow in `.github/workflows/relay.yml` handles the rest. It runs on GitHub's free tier for public repositories.
+Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
 
 ## Endpoints
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/status` | GET | Treasury balance, per-faucet timers, recent attempts. Public. |
-| `/api/claim` | POST | `{ "address": "..." }` → one SOL and a signature. |
-| `/api/relay/tick` | POST | Bearer-authenticated. Called by the schedule. |
+| `/api/status` | GET | The board. Add `?address=` for a personal clock. Public, writes nothing. |
+| `/api/report` | POST | `{ faucetId, address, outcome }` — what happened when you clicked through. |
+| `/api/relay/tick` | POST | Bearer-authenticated. The scheduled probe. |
+
+## Deploying
+
+Push, import into Vercel, set the variables there. Then add two repository secrets so the schedule can reach the deployment:
+
+- `RELAY_URL` — the deployment origin, no trailing slash
+- `RELAY_TOKEN` — the same value as the environment variable
+
+`.github/workflows/relay.yml` handles the rest, on GitHub's free tier for public repositories.
 
 ## Security
 
-No key is ever read from a file inside this repository. `.gitignore` blocks `.env*`, `*.key`, `*keypair*.json`, and `wallet*.txt`. `/api/status` returns only data that is already public: an address, a balance, timestamps, and signatures.
+No key is read from any file in this repository. `.gitignore` blocks `.env*`, `*.key`, `*keypair*.json`, and `wallet*.txt`. The probe generates a throwaway keypair in memory, uses it once, and discards it — nothing it receives is ever spent or swept.
 
-If a treasury secret is ever pasted somewhere it should not be — a chat window, an issue, a screenshot — treat it as gone and rotate to a new keypair. Devnet makes that cheap, which is the one advantage of practising here.
+Every field `/api/status` returns is already public: an address you typed, timestamps, and outcome counts.

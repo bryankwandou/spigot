@@ -1,6 +1,5 @@
 import { Mark, Wordmark } from "@/components/Mark";
-import { ClaimForm } from "@/components/ClaimForm";
-import { FaucetTable } from "@/components/FaucetTable";
+import { FaucetBoard } from "@/components/FaucetBoard";
 
 export default function Home() {
   return (
@@ -22,59 +21,44 @@ export default function Home() {
         </p>
 
         <h1 className="max-w-2xl text-4xl font-bold leading-[1.08] tracking-[-0.03em] sm:text-6xl">
-          Devnet SOL <span className="brand-text">on tap</span>.
+          Stop guessing which faucet <span className="brand-text">still works</span>.
         </h1>
 
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-mist">
-          Funding a devnet wallet means visiting four sites, solving three captchas, and
-          remembering which one you used yesterday. Spigot keeps that bookkeeping so you can
-          paste an address and get back to work.
+          Devnet faucets go dry without saying so. You open four tabs, sign in twice, and find
+          out the hard way. Spigot pools what everyone else just discovered, so you can see
+          which one is paying before you spend a click on it.
         </p>
 
         <div className="mt-10">
-          <ClaimForm />
+          <FaucetBoard />
         </div>
       </section>
 
       <section className="mt-28 border-t border-edge pt-12">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">
-          What the pool is doing
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-mist">
-          Every upstream faucet, its published limit, and when Spigot is next allowed to ask.
-          The numbers update on their own.
-        </p>
-        <div className="mt-6">
-          <FaucetTable />
-        </div>
-      </section>
-
-      <section className="mt-28 border-t border-edge pt-12">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">
-          How it works
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">How it works</h2>
 
         <ol className="mt-6 space-y-6">
           {[
             {
               n: "01",
-              t: "A schedule wakes up, it does not decide",
-              d: "A job runs every half hour and asks the relay which faucets are due. The relay owns the clock. A fixed eight-hour timer drifts and eventually fires early, which is exactly the mistake that gets an address blocked.",
+              t: "The knowledge already exists, it just dies alone",
+              d: "Every hour, hundreds of developers find out a faucet is empty. Each of them learns it separately, spends a claim finding out, and tells nobody. Spigot is a place to put that one fact so the next person does not repeat the trip.",
             },
             {
               n: "02",
-              t: "One identity, one attempt",
-              d: "Each faucet is asked once per window from the same treasury address. Spigot does not rotate wallets or egress addresses. A refusal is written down and the next window is measured from that moment, so it backs off instead of pushing.",
+              t: "Two clocks, because they are different questions",
+              d: "Whether a faucet is paying anyone right now has nothing to do with whether you personally are past its cooldown. A faucet can be flowing and still closed to you. The board answers both, side by side.",
             },
             {
               n: "03",
-              t: "Three minutes of headroom",
-              d: "Every cooldown carries a deliberate margin on top of the published figure. Server clocks disagree by seconds and a request that lands one second early counts as early.",
+              t: "One probe per window, from one address",
+              d: "Spigot checks the RPC airdrop itself, once per cooldown window with three minutes of headroom, from a throwaway address it then discards. No wallet rotation, no egress rotation. Measured, not assumed: that faucet meters on IP, so extra wallets would change nothing anyway.",
             },
             {
               n: "04",
-              t: "The pool pays out",
-              d: "What arrives sits in one public devnet address. You take one SOL per request, up to five a day, and the transaction signature is yours to check on an explorer.",
+              t: "You keep your own clock",
+              d: "Paste an address and it stays in your browser. Tell the board when a faucet paid you and it starts counting your next window, and everyone else sees one more data point on whether that faucet is alive.",
             },
           ].map((s) => (
             <li key={s.n} className="flex gap-5">
@@ -94,20 +78,20 @@ export default function Home() {
         </h2>
         <div className="mt-6 space-y-4 text-sm leading-relaxed text-mist">
           <p>
-            It will not farm faucets. Rotating wallets and addresses to slip past a rate limit is
-            the obvious way to make the numbers bigger, and it is the reason this project would
-            deserve to be shut down. One identity per faucet, published limits honoured, margin
-            added on top.
+            It will not farm faucets. Rotating wallets and egress addresses to slip past a limit
+            is the obvious way to make the numbers bigger, and it is the reason a project like
+            this would deserve to be shut down. One identity, one request per window, published
+            limits honoured with margin added on top.
           </p>
           <p>
-            It will not pretend the throughput is larger than it is. Two of the three upstream
-            faucets are gated by a human check on purpose, so Spigot shows their timers and a
-            person clicks. Automated intake is roughly two SOL every eight hours. That is a small
-            number, and it is the real one.
+            It will not charge you. There is no token, no fee, no paid tier, and nothing to
+            connect a mainnet wallet to. Devnet SOL is given away for free by the people who
+            issue it, and reselling it would be selling something that is not ours.
           </p>
           <p>
-            It will not touch mainnet. These are devnet tokens. They are worth nothing and are
-            meant to stay that way.
+            It will not hold your funds. Spigot never takes custody, never asks for a private
+            key, and never signs anything on your behalf. It points you at the faucet and gets
+            out of the way.
           </p>
         </div>
       </section>

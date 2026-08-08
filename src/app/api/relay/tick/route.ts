@@ -1,89 +1,67 @@
 import { NextResponse } from "next/server";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { serverCallable, isEligible, nextEligibleAt } from "@/lib/faucets";
-import { getLastAttempt, recordAttempt, migrate, isConfigured } from "@/lib/store";
-import { connection, treasuryAddress } from "@/lib/treasury";
+import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { probeable, isEligible, nextEligibleAt } from "@/lib/faucets";
+import { migrate, lastProbeAt, recordProbe, type Outcome } from "@/lib/store";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 30;
+
+const RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 
 /**
- * Called by the scheduled workflow every 30 minutes.
+ * The scheduled probe.
  *
- * The schedule does not decide when a faucet may be called — this route does.
- * Each faucet is checked against its own cooldown plus the margin, and the ones
- * still inside their window are reported as skipped rather than attempted.
- * There is no retry loop and no second identity.
+ * One request per faucet per cooldown window, from one throwaway address, from
+ * one host. The point is not to collect SOL — the probe address is discarded
+ * and whatever lands there stays there. The point is to find out, on the
+ * community's behalf, whether the faucet is paying anyone right now, so that
+ * nobody else has to burn their own daily allowance discovering it.
+ *
+ * Anything still inside its window is reported as skipped and not touched.
  */
 export async function POST(req: Request) {
-  const secret = process.env.RELAY_TOKEN;
-  if (!secret) {
-    return NextResponse.json({ error: "The relay has no token configured." }, { status: 503 });
+  const token = process.env.RELAY_TOKEN;
+  if (!token) {
+    return NextResponse.json({ error: "RELAY_TOKEN is not configured." }, { status: 503 });
   }
-  if (req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Not authorised." }, { status: 401 });
-  }
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "No database configured." }, { status: 503 });
-  }
-
-  const treasury = treasuryAddress();
-  if (!treasury) {
-    return NextResponse.json({ error: "No treasury address configured." }, { status: 503 });
+  if (req.headers.get("authorization") !== `Bearer ${token}`) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
   await migrate();
-  const conn = connection();
+
   const now = Date.now();
+  const conn = new Connection(RPC, "confirmed");
+  const probed: Array<{ faucetId: string; outcome: Outcome; detail: string | null }> = [];
+  const skipped: Array<{ faucetId: string; readyAt: number }> = [];
 
-  const attempted: Array<Record<string, unknown>> = [];
-  const skipped: Array<{ faucet: string; eligibleAt: number }> = [];
-
-  for (const faucet of serverCallable()) {
-    const last = await getLastAttempt(faucet.id);
-
-    if (!isEligible(faucet, last, now)) {
-      skipped.push({ faucet: faucet.id, eligibleAt: nextEligibleAt(faucet, last) });
+  for (const f of probeable()) {
+    const last = await lastProbeAt(f.id);
+    if (!isEligible(f, last, now)) {
+      skipped.push({ faucetId: f.id, readyAt: nextEligibleAt(f, last) });
       continue;
     }
 
-    const lamports = Math.round(faucet.expectedSol * LAMPORTS_PER_SOL);
+    let outcome: Outcome = "failed";
+    let detail: string | null = null;
 
     try {
-      const signature = await conn.requestAirdrop(treasury, lamports);
-      const latest = await conn.getLatestBlockhash();
-      const confirmation = await conn.confirmTransaction(
-        { signature, ...latest },
-        "confirmed",
-      );
-
-      if (confirmation.value.err) {
-        const detail = JSON.stringify(confirmation.value.err);
-        await recordAttempt(faucet.id, "failed", null, signature, detail);
-        attempted.push({ faucet: faucet.id, outcome: "failed", signature, detail });
-        continue;
-      }
-
-      await recordAttempt(faucet.id, "granted", lamports, signature);
-      attempted.push({ faucet: faucet.id, outcome: "granted", lamports, signature });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      // Being told no is information worth keeping. Recording it means the next
-      // window is measured from this moment, so we back off instead of pushing.
-      const outcome = /429|rate|limit|too many/i.test(detail) ? "rate_limited" : "failed";
-      await recordAttempt(faucet.id, outcome, null, null, detail);
-      attempted.push({ faucet: faucet.id, outcome, detail });
+      const probe = Keypair.generate();
+      const sig = await conn.requestAirdrop(probe.publicKey, LAMPORTS_PER_SOL);
+      const bh = await conn.getLatestBlockhash();
+      await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
+      outcome = "granted";
+      detail = sig;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const dry = /run dry|airdrop limit|429|Too Many Requests/i.test(msg);
+      outcome = dry ? "dry" : "failed";
+      detail = msg.split("\n")[0].slice(0, 300);
     }
+
+    await recordProbe(f.id, outcome, detail);
+    probed.push({ faucetId: f.id, outcome, detail });
   }
 
-  const balance = await conn.getBalance(treasury);
-
-  return NextResponse.json({
-    checkedAt: now,
-    treasury: treasury.toBase58(),
-    treasuryLamports: balance,
-    attempted,
-    skipped,
-  });
+  return NextResponse.json({ checkedAt: now, probed, skipped });
 }

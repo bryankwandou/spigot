@@ -1,8 +1,8 @@
-name: Faucet relay
+name: Faucet probe
 
 # Wakes every 30 minutes. The workflow does not decide when a faucet may be
-# called — it only asks. The relay endpoint holds the cooldown state and
-# answers "not yet" for anything still inside its window plus the margin.
+# called — it only asks. The endpoint holds the cooldown state and answers
+# "not yet" for anything still inside its window plus the margin.
 #
 # A fixed eight-hour cron would drift: GitHub's scheduler runs late under load,
 # and any attempt to compensate eventually fires early. Waking often and being
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Ask the relay which faucets are due
+      - name: Ask which faucets are due for a probe
         env:
           RELAY_URL: ${{ secrets.RELAY_URL }}
           RELAY_TOKEN: ${{ secrets.RELAY_TOKEN }}
@@ -42,9 +42,9 @@ jobs:
             -H "Authorization: Bearer $RELAY_TOKEN" \
             -H "Content-Type: application/json")
 
-          echo "Relay responded $code"
-          # Safe to print: the endpoint returns faucet ids, amounts, timestamps
-          # and transaction signatures. No key crosses this boundary.
+          echo "Endpoint responded $code"
+          # Safe to print: the response carries faucet ids, outcomes and
+          # timestamps. No key crosses this boundary.
           cat response.json
           echo
 

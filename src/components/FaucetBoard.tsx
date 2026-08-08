@@ -1,0 +1,238 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Countdown } from "./Countdown";
+
+type Status = "flowing" | "patchy" | "dry" | "unknown";
+
+type Row = {
+  id: string;
+  label: string;
+  access: "server" | "human";
+  meters: string;
+  cooldownMs: number;
+  expectedSol: number;
+  claimUrl: string;
+  note: string;
+  health: { status: Status; successRate: number | null; sample: number; lastGrantedAt: number | null };
+  summary: string;
+  yourLastClaimAt: number | null;
+  yourNextEligibleAt: number | null;
+};
+
+const DOT: Record<Status, string> = {
+  flowing: "bg-aqua",
+  patchy: "bg-amber-400",
+  dry: "bg-rose-500",
+  unknown: "bg-edge",
+};
+
+const LABEL: Record<Status, string> = {
+  flowing: "flowing",
+  patchy: "patchy",
+  dry: "dry",
+  unknown: "unrated",
+};
+
+function hours(ms: number): string {
+  return `${Math.round(ms / 3_600_000)}h`;
+}
+
+/**
+ * The board.
+ *
+ * Two questions get answered per row and they are different questions: is this
+ * faucet paying anyone at all right now, and are *you* allowed to ask it yet.
+ * A faucet can be flowing and still closed to you, which is precisely the
+ * information that four browser tabs fail to give you.
+ */
+export function FaucetBoard() {
+  const [address, setAddress] = useState("");
+  const [tracked, setTracked] = useState<string | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(async (addr: string | null) => {
+    const q = addr ? `?address=${encodeURIComponent(addr)}` : "";
+    try {
+      const r = await fetch(`/api/status${q}`, { cache: "no-store" });
+      const j = await r.json();
+      setRows(j.faucets ?? []);
+    } catch {
+      /* leave the previous board up rather than blanking it on a blip */
+    }
+  }, []);
+
+  useEffect(() => {
+    load(tracked);
+    const id = setInterval(() => load(tracked), 20_000);
+    return () => clearInterval(id);
+  }, [load, tracked]);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("spigot.address");
+    if (saved) {
+      setAddress(saved);
+      setTracked(saved);
+    }
+  }, []);
+
+  function track(e: React.FormEvent) {
+    e.preventDefault();
+    const a = address.trim();
+    if (!a) return;
+    window.localStorage.setItem("spigot.address", a);
+    setTracked(a);
+  }
+
+  function forget() {
+    window.localStorage.removeItem("spigot.address");
+    setTracked(null);
+    setAddress("");
+  }
+
+  async function report(faucetId: string, outcome: "granted" | "dry") {
+    if (!tracked) return;
+    setBusy(faucetId + outcome);
+    try {
+      await fetch("/api/report", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ faucetId, address: tracked, outcome }),
+      });
+      await load(tracked);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div>
+      <form onSubmit={track} className="flex flex-col gap-3 sm:flex-row">
+        <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder="Your devnet address"
+          spellCheck={false}
+          aria-label="Your devnet address"
+          className="min-w-0 flex-1 rounded-lg border border-edge bg-panel px-4 py-3 font-mono text-sm text-paper placeholder:text-mist/60"
+        />
+        <button
+          type="submit"
+          className="brand-gradient rounded-lg px-5 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
+        >
+          Track my clock
+        </button>
+      </form>
+
+      <AnimatePresence>
+        {tracked && (
+          <motion.p
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-3 text-xs text-mist"
+          >
+            Following{" "}
+            <span className="font-mono text-paper">
+              {tracked.slice(0, 4)}…{tracked.slice(-4)}
+            </span>{" "}
+            in this browser only.{" "}
+            <button onClick={forget} className="underline decoration-edge underline-offset-4 hover:text-paper">
+              Forget it
+            </button>
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <ul className="mt-6 space-y-3">
+        {(rows ?? []).map((f, i) => {
+          const ready = f.yourNextEligibleAt !== null && f.yourNextEligibleAt <= Date.now();
+          return (
+            <motion.li
+              key={f.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.24 }}
+              className="rounded-xl border border-edge bg-panel p-5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${DOT[f.health.status]}`} />
+                    <h3 className="font-medium text-paper">{f.label}</h3>
+                    <span className="text-xs text-mist">{LABEL[f.health.status]}</span>
+                  </div>
+                  <p className="mt-2 max-w-md text-sm leading-relaxed text-mist">{f.note}</p>
+                  <p className="mt-2 text-xs text-mist">
+                    {f.health.sample > 0 ? (
+                      <>
+                        <span className="tnum text-paper">
+                          {f.health.successRate === null
+                            ? "—"
+                            : `${Math.round(f.health.successRate * 100)}%`}
+                        </span>{" "}
+                        paid out across{" "}
+                        <span className="tnum text-paper">{f.health.sample}</span> recent
+                        {f.health.sample === 1 ? " report" : " reports"}
+                      </>
+                    ) : (
+                      "No reports in the last 90 minutes"
+                    )}
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <p className="tnum text-sm font-medium text-paper">~{f.expectedSol} SOL</p>
+                  <p className="mt-0.5 text-xs text-mist">every {hours(f.cooldownMs)}</p>
+                  {tracked && f.yourNextEligibleAt !== null && (
+                    <p className="mt-2 text-xs text-mist">
+                      you: <Countdown to={f.yourNextEligibleAt} />
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-edge pt-4">
+                <a
+                  href={f.claimUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                    ready || !tracked
+                      ? "bg-paper text-ink hover:opacity-90"
+                      : "border border-edge text-mist hover:text-paper"
+                  }`}
+                >
+                  {tracked && !ready ? "Open anyway" : "Open faucet"}
+                </a>
+
+                {tracked && (
+                  <>
+                    <button
+                      onClick={() => report(f.id, "granted")}
+                      disabled={busy !== null}
+                      className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
+                    >
+                      {busy === f.id + "granted" ? "Saving" : "It paid"}
+                    </button>
+                    <button
+                      onClick={() => report(f.id, "dry")}
+                      disabled={busy !== null}
+                      className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
+                    >
+                      {busy === f.id + "dry" ? "Saving" : "It was dry"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </motion.li>
+          );
+        })}
+      </ul>
+
+      {rows === null && <p className="mt-6 text-sm text-mist">Reading the board…</p>}
+    </div>
+  );
+}

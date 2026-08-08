@@ -1,63 +1,63 @@
 import { NextResponse } from "next/server";
 import { FAUCETS, nextEligibleAt } from "@/lib/faucets";
-import { getLastAttempt, recentAttempts, isConfigured } from "@/lib/store";
-import { connection, treasuryAddress } from "@/lib/treasury";
+import { healthFor, describe, HEALTH_WINDOW_MS } from "@/lib/health";
+import { eventsSince, lastReportFor, isConfigured, migrate } from "@/lib/store";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Public read model behind the dashboard.
+ * The board. Public, no auth, no key material in the response.
  *
- * Everything here is already public: an address, a balance, timestamps, and
- * transaction signatures anyone can look up on an explorer. No secret touches
- * this response.
+ * Pass `?address=` and the per-faucet clock becomes that address's clock rather
+ * than a generic one. Nothing is stored by this call — reading is free and
+ * anonymous; only an explicit report writes anything down.
  */
-export async function GET() {
-  const treasury = treasuryAddress();
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const address = url.searchParams.get("address")?.trim() || null;
+  const now = Date.now();
 
-  if (!treasury || !isConfigured()) {
-    return NextResponse.json({
-      ready: false,
-      reason: "Spigot has not been given a treasury and a database yet.",
-      faucets: FAUCETS.map((f) => ({
-        id: f.id,
-        label: f.label,
-        access: f.access,
-        cooldownMs: f.cooldownMs,
-        expectedSol: f.expectedSol,
-        terms: f.terms,
-        lastAttempt: null,
-        eligibleAt: 0,
-      })),
-      attempts: [],
-    });
+  if (!isConfigured()) {
+    return NextResponse.json(
+      {
+        now,
+        configured: false,
+        windowMs: HEALTH_WINDOW_MS,
+        faucets: FAUCETS.map((f) => ({
+          ...f,
+          health: { status: "unknown", successRate: null, sample: 0, lastGrantedAt: null, lastSeenAt: null },
+          summary: "no database configured",
+          yourNextEligibleAt: null,
+        })),
+      },
+      { status: 200 },
+    );
   }
 
-  const balance = await connection().getBalance(treasury);
+  await migrate();
 
-  const faucets = await Promise.all(
-    FAUCETS.map(async (f) => {
-      const last = await getLastAttempt(f.id);
-      return {
-        id: f.id,
-        label: f.label,
-        access: f.access,
-        cooldownMs: f.cooldownMs,
-        expectedSol: f.expectedSol,
-        terms: f.terms,
-        lastAttempt: last,
-        eligibleAt: nextEligibleAt(f, last),
-      };
-    }),
-  );
+  const events = await eventsSince(now - HEALTH_WINDOW_MS);
+  const mine = address ? await lastReportFor(address) : {};
 
-  return NextResponse.json({
-    ready: true,
-    now: Date.now(),
-    treasury: treasury.toBase58(),
-    treasuryLamports: balance,
-    faucets,
-    attempts: await recentAttempts(20),
+  const faucets = FAUCETS.map((f) => {
+    const health = healthFor(f.id, events, now);
+    const lastYours = mine[f.id] ?? null;
+    return {
+      id: f.id,
+      label: f.label,
+      access: f.access,
+      meters: f.meters,
+      cooldownMs: f.cooldownMs,
+      expectedSol: f.expectedSol,
+      claimUrl: f.claimUrl,
+      terms: f.terms,
+      note: f.note,
+      health,
+      summary: describe(health),
+      yourLastClaimAt: lastYours,
+      yourNextEligibleAt: lastYours === null ? 0 : nextEligibleAt(f, lastYours),
+    };
   });
+
+  return NextResponse.json({ now, configured: true, address, windowMs: HEALTH_WINDOW_MS, faucets });
 }
