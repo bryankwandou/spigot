@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { probeable, isEligible, nextEligibleAt } from "@/lib/faucets";
-import { migrate, lastProbeAt, recordProbe, type Outcome } from "@/lib/store";
+import { migrate, lastProbeAt, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -26,6 +26,16 @@ export async function POST(req: Request) {
   }
   if (req.headers.get("authorization") !== `Bearer ${token}`) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+  }
+
+  // The probe log is also the cooldown clock. Without it there is no record of
+  // when we last asked, and probing anyway would risk going in early — exactly
+  // the mistake the margin exists to prevent. Stand down instead.
+  if (!isConfigured()) {
+    return NextResponse.json(
+      { error: "No database, so the cooldown clock is unreadable. Nothing probed." },
+      { status: 503 },
+    );
   }
 
   await migrate();

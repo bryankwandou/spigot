@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { byId } from "@/lib/faucets";
-import { migrate, recordReport, type Outcome } from "@/lib/store";
+import { migrate, recordReport, isConfigured, type Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +50,13 @@ export async function POST(req: Request) {
     normalized = new PublicKey(address).toBase58();
   } catch {
     return NextResponse.json({ error: "address is not a valid Solana public key." }, { status: 400 });
+  }
+
+  if (!isConfigured()) {
+    return NextResponse.json(
+      { error: "Reports are unavailable while the database is not configured." },
+      { status: 503 },
+    );
   }
 
   await migrate();

@@ -1,5 +1,7 @@
 import { Mark, Wordmark } from "@/components/Mark";
 import { FaucetBoard } from "@/components/FaucetBoard";
+import { ClaimForm } from "@/components/ClaimForm";
+import { PoolStatus } from "@/components/PoolStatus";
 
 export default function Home() {
   return (
@@ -21,16 +23,33 @@ export default function Home() {
         </p>
 
         <h1 className="max-w-2xl text-4xl font-bold leading-[1.08] tracking-[-0.03em] sm:text-6xl">
-          Stop guessing which faucet <span className="brand-text">still works</span>.
+          Devnet SOL <span className="brand-text">on tap</span>.
         </h1>
 
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-mist">
-          Devnet faucets go dry without saying so. You open four tabs, sign in twice, and find
-          out the hard way. Spigot pools what everyone else just discovered, so you can see
-          which one is paying before you spend a click on it.
+          Faucets go dry without saying so. You open four tabs, sign in twice, and find out the
+          hard way. Paste an address instead: draw from a pool someone already filled, and when
+          that runs out, see at a glance which faucet is still paying.
         </p>
 
         <div className="mt-10">
+          <PoolStatus />
+        </div>
+
+        <div className="mt-6">
+          <ClaimForm />
+        </div>
+      </section>
+
+      <section className="mt-28 border-t border-edge pt-12">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">
+          If the pool is dry, use the board
+        </h2>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed text-mist">
+          Live status for every upstream faucet, plus your own cooldown once you paste an address.
+          Tell it what happened after you click through and the next person sees it.
+        </p>
+        <div className="mt-6">
           <FaucetBoard />
         </div>
       </section>
@@ -42,8 +61,8 @@ export default function Home() {
           {[
             {
               n: "01",
-              t: "The knowledge already exists, it just dies alone",
-              d: "Every hour, hundreds of developers find out a faucet is empty. Each of them learns it separately, spends a claim finding out, and tells nobody. Spigot is a place to put that one fact so the next person does not repeat the trip.",
+              t: "The pool is filled by hand, on purpose",
+              d: "The RPC airdrop meters on IP, not on wallet, so a hosted job collects nothing however many addresses it owns. That was measured, not assumed. Someone claims from the human-gated faucets and forwards it here, and the caps spread it across the people who could not get through at all.",
             },
             {
               n: "02",
@@ -89,9 +108,9 @@ export default function Home() {
             issue it, and reselling it would be selling something that is not ours.
           </p>
           <p>
-            It will not hold your funds. Spigot never takes custody, never asks for a private
-            key, and never signs anything on your behalf. It points you at the faucet and gets
-            out of the way.
+            It will not ask for your key. The pool signs with its own wallet and sends outward
+            only. Nothing here requests a seed phrase, a private key, or a signature from you —
+            pasting a public address is the entire interaction.
           </p>
         </div>
       </section>

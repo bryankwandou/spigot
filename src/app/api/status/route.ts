@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FAUCETS, nextEligibleAt } from "@/lib/faucets";
 import { healthFor, describe, HEALTH_WINDOW_MS } from "@/lib/health";
 import { eventsSince, lastReportFor, isConfigured, migrate } from "@/lib/store";
+import { treasuryAddress, treasuryBalance, isFunded } from "@/lib/treasury";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,19 @@ export async function GET(req: Request) {
   const address = url.searchParams.get("address")?.trim() || null;
   const now = Date.now();
 
+  // The two subsystems fail independently. A missing database costs the health
+  // signal and the personal clock, but the pool is on-chain and still has a
+  // balance worth showing, so report it rather than blanking the whole page.
   if (!isConfigured()) {
     return NextResponse.json(
       {
         now,
         configured: false,
         windowMs: HEALTH_WINDOW_MS,
+        treasury: {
+          address: treasuryAddress(),
+          lamports: isFunded() ? await treasuryBalance() : null,
+        },
         faucets: FAUCETS.map((f) => ({
           ...f,
           health: { status: "unknown", successRate: null, sample: 0, lastGrantedAt: null, lastSeenAt: null },
@@ -59,5 +67,18 @@ export async function GET(req: Request) {
     };
   });
 
-  return NextResponse.json({ now, configured: true, address, windowMs: HEALTH_WINDOW_MS, faucets });
+  // Address and balance only. The secret never leaves the server process.
+  const treasury = {
+    address: treasuryAddress(),
+    lamports: isFunded() ? await treasuryBalance() : null,
+  };
+
+  return NextResponse.json({
+    now,
+    configured: true,
+    address,
+    windowMs: HEALTH_WINDOW_MS,
+    treasury,
+    faucets,
+  });
 }
