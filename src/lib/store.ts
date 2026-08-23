@@ -95,6 +95,32 @@ export async function lastReportFor(address: string): Promise<Record<string, num
   return out;
 }
 
+/**
+ * Whether this address already reported this faucet very recently.
+ *
+ * The board's whole value is that its numbers mean something, and the report
+ * log is the one surface anyone can write to. Without a floor between writes a
+ * single caller can decide what every reader sees, which costs one loop and
+ * ruins the only thing being sold. This is a speed bump, not an identity
+ * check: an address is free to generate, so the point is to make poisoning
+ * tedious rather than impossible, without asking an honest developer to prove
+ * anything.
+ */
+export async function reportedRecently(
+  faucetId: string,
+  address: string,
+  withinMs: number,
+): Promise<number | null> {
+  const sql = db();
+  const since = new Date(Date.now() - withinMs).toISOString();
+  const rows = (await sql`
+    SELECT at FROM reports
+    WHERE faucet_id = ${faucetId} AND address = ${address} AND at >= ${since}
+    ORDER BY at DESC LIMIT 1
+  `) as Array<{ at: string }>;
+  return rows.length ? new Date(rows[0].at).getTime() : null;
+}
+
 export async function recordReport(
   faucetId: string,
   address: string,

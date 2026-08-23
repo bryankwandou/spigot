@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { byId } from "@/lib/faucets";
-import { migrate, recordReport, isConfigured, type Outcome } from "@/lib/store";
+import {
+  migrate,
+  recordReport,
+  reportedRecently,
+  isConfigured,
+  type Outcome,
+} from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED: Outcome[] = ["granted", "rate_limited", "dry", "failed"];
+
+/**
+ * Minimum gap between reports from one address about one faucet.
+ *
+ * Long enough that nobody can sit on the endpoint and decide what the board
+ * says, short enough that a developer who reports a refusal and then retries
+ * successfully a few minutes later can still record the second result — that
+ * sequence is the most useful thing anyone reports, and rejecting it to stop
+ * abuse would throw away the signal to protect it.
+ */
+const REPORT_GAP_MS = 5 * 60 * 1000;
 
 /**
  * A developer telling the board what happened when they clicked through.
@@ -60,6 +77,20 @@ export async function POST(req: Request) {
   }
 
   await migrate();
+
+  const recent = await reportedRecently(faucet.id, normalized, REPORT_GAP_MS);
+  if (recent !== null) {
+    const retryAt = recent + REPORT_GAP_MS;
+    return NextResponse.json(
+      {
+        error: "You already reported this faucet a moment ago.",
+        retryAt,
+        retryInMs: Math.max(0, retryAt - Date.now()),
+      },
+      { status: 429 },
+    );
+  }
+
   await recordReport(faucet.id, normalized, outcome as Outcome);
 
   return NextResponse.json({ recorded: true, faucetId: faucet.id, outcome });

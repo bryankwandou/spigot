@@ -52,6 +52,8 @@ export function FaucetBoard() {
   const [tracked, setTracked] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Keyed by faucet so a rejection appears against the row it belongs to.
+  const [notice, setNotice] = useState<{ faucetId: string; text: string } | null>(null);
 
   const load = useCallback(async (addr: string | null) => {
     const q = addr ? `?address=${encodeURIComponent(addr)}` : "";
@@ -95,13 +97,29 @@ export function FaucetBoard() {
   async function report(faucetId: string, outcome: "granted" | "dry") {
     if (!tracked) return;
     setBusy(faucetId + outcome);
+    setNotice(null);
     try {
-      await fetch("/api/report", {
+      const r = await fetch("/api/report", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ faucetId, address: tracked, outcome }),
       });
+
+      // An ignored response is how a refused write comes to look like a
+      // successful one: the board reloads, nothing has changed, and the person
+      // walks away believing they contributed. Say what happened instead.
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        setNotice({
+          faucetId,
+          text: body?.error ?? "That report was not recorded.",
+        });
+        return;
+      }
+
       await load(tracked);
+    } catch {
+      setNotice({ faucetId, text: "Could not reach the board. Your report was not saved." });
     } finally {
       setBusy(null);
     }
@@ -227,6 +245,12 @@ export function FaucetBoard() {
                   </>
                 )}
               </div>
+
+              {notice?.faucetId === f.id && (
+                <p role="status" className="mt-3 text-xs text-mist">
+                  {notice.text}
+                </p>
+              )}
             </motion.li>
           );
         })}
