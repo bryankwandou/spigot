@@ -34,9 +34,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Fail loudly. An earlier version exited 0 here, and the result was
+          # eight consecutive green runs that had never called anything: the
+          # secret existed but held an empty string, so every wake-up skipped
+          # the probe and reported success. A schedule that cannot reach its
+          # endpoint is broken, and the run history is the only place that
+          # shows it.
           if [ -z "${RELAY_URL:-}" ] || [ -z "${RELAY_TOKEN:-}" ]; then
-            echo "RELAY_URL or RELAY_TOKEN is missing. Nothing to do."
-            exit 0
+            echo "RELAY_URL or RELAY_TOKEN is empty. The probe cannot run."
+            exit 1
           fi
 
           code=$(curl -sS -o response.json -w '%{http_code}' \
