@@ -25,12 +25,14 @@ jobs:
           node-version: "24"
           cache: npm
 
-      # --omit=optional because ws ships bufferutil and utf-8-validate as
-      # optional native accelerators. npm resolves them differently on Linux
-      # than on the Windows machine the lock is generated from, so a strict
-      # `npm ci` rejects a lock that is otherwise correct. Nothing here needs
-      # either package, and skipping them is honest as well as faster.
-      - run: npm ci --omit=optional
+      # npm install rather than npm ci. The lock is generated on Windows and
+      # several dependencies resolve to platform-specific native binaries —
+      # lightningcss under Tailwind, and ws's optional accelerators — so a
+      # lock that is correct there is missing entries a Linux runner expects,
+      # and strict ci rejects it before running a single test. Vercel installs
+      # the same way and builds cleanly. The cost is that a transitive version
+      # can drift between runs; the alternative was a check that never ran.
+      - run: npm install --no-audit --no-fund
 
       - name: Types
         run: npm run typecheck
