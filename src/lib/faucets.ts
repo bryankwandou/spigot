@@ -15,6 +15,14 @@
  *    meters on egress and no number of wallets changes that.
  */
 
+/**
+ * How often the scheduled job wakes to ask. Nine hours is the tightest cadence
+ * the eight-hour upstream limit permits once the margin below is added, and it
+ * is the number the health signal is calibrated against — widen this and the
+ * window in `health.ts` has to widen with it.
+ */
+export const PROBE_INTERVAL_MS = 9 * 60 * 60 * 1000;
+
 /** Extra delay added to every cooldown so we are never early. */
 export const COOLDOWN_MARGIN_MS = 3 * 60 * 1000;
 
@@ -81,10 +89,19 @@ export const FAUCETS: Faucet[] = [
   },
 ];
 
-/** Earliest permissible next request, given the last one. */
+/**
+ * Earliest permissible next request, given the last one.
+ *
+ * Two limits apply and the later one wins: the faucet's own published cooldown
+ * plus the margin, and our own nine-hour cadence. The second is what makes the
+ * schedule nine-hourly in fact rather than in intent — the cron wakes far more
+ * often than that on purpose, because GitHub's scheduler runs late under load
+ * and a cron pinned to nine hours would drift until it fired early. Waking
+ * often and being told "not yet" costs nothing; the clock lives here.
+ */
 export function nextEligibleAt(f: Faucet, lastAtMs: number | null): number {
   if (lastAtMs === null) return 0;
-  return lastAtMs + f.cooldownMs + COOLDOWN_MARGIN_MS;
+  return lastAtMs + Math.max(f.cooldownMs + COOLDOWN_MARGIN_MS, PROBE_INTERVAL_MS);
 }
 
 export function isEligible(f: Faucet, lastAtMs: number | null, now = Date.now()): boolean {

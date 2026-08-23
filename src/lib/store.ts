@@ -60,56 +60,6 @@ export async function migrate(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS reports_faucet_at ON reports (faucet_id, at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS reports_address_at ON reports (address, at DESC)`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS claims (
-      id        BIGSERIAL PRIMARY KEY,
-      recipient TEXT        NOT NULL,
-      lamports  BIGINT      NOT NULL,
-      signature TEXT        NOT NULL UNIQUE,
-      at        TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `;
-  await sql`CREATE INDEX IF NOT EXISTS claims_recipient_at ON claims (recipient, at DESC)`;
-}
-
-/** Lamports handed to one recipient since a moment. Enforces the daily cap. */
-export async function claimedSince(recipient: string, sinceMs: number): Promise<number> {
-  const sql = db();
-  const rows = (await sql`
-    SELECT COALESCE(SUM(lamports), 0) AS total FROM claims
-    WHERE recipient = ${recipient} AND at >= ${new Date(sinceMs).toISOString()}
-  `) as Array<{ total: string }>;
-  return Number(rows[0]?.total ?? 0);
-}
-
-export async function recordClaim(
-  recipient: string,
-  lamports: number,
-  signature: string,
-): Promise<void> {
-  const sql = db();
-  await sql`
-    INSERT INTO claims (recipient, lamports, signature)
-    VALUES (${recipient}, ${lamports}, ${signature})
-    ON CONFLICT (signature) DO NOTHING
-  `;
-}
-
-export type Claim = { recipient: string; lamports: number; signature: string; at: number };
-
-export async function recentClaims(limit = 8): Promise<Claim[]> {
-  const sql = db();
-  const rows = (await sql`
-    SELECT recipient, lamports, signature, at FROM claims ORDER BY at DESC LIMIT ${limit}
-  `) as Array<Record<string, unknown>>;
-
-  return rows.map((r) => ({
-    recipient: String(r.recipient),
-    lamports: Number(r.lamports),
-    signature: String(r.signature),
-    at: new Date(String(r.at)).getTime(),
-  }));
 }
 
 /** When Spigot last probed a faucet, granted or not. Drives our own cooldown. */

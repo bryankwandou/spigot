@@ -4,7 +4,7 @@
 
 <h1 align="center">Spigot</h1>
 
-<p align="center">Which devnet faucet is actually paying, right now.</p>
+<p align="center">Which devnet faucet paid last, and how long ago.</p>
 
 ---
 
@@ -28,23 +28,31 @@ The addresses were new, so the meter is not on the recipient — it is on the **
 1. **Rotating wallets cannot work.** Not "should not" — cannot. The upstream is not counting wallets. Anyone selling you a multi-wallet devnet farmer is selling a loop that returns 429 in ten different fonts.
 2. **A hosted service cannot fill a pool.** Vercel and GitHub Actions run on shared egress that thousands of others have already spent. Automated intake from there is zero.
 
-So the pool is filled by hand and the app is honest about it. Someone claims from the human-gated faucets and forwards it to the treasury; per-address caps spread that across the developers who could not get through at all. Any project claiming an automated devnet pipeline is describing a loop that returns 429 in ten different fonts.
+That second point is why Spigot hands out nothing. An earlier draft of this app carried a treasury someone had to top up by hand, which is not a product — it is a favour with a deploy pipeline attached. What survives the measurement is the part that scales: the observation itself.
 
 ## What it does
 
 | | |
 |---|---|
-| **Draw from the pool** | One SOL per request, five per address per day, straight to a devnet address you paste. Free. |
-| **Live health** | Whether each faucet is paying *anyone* in the last 90 minutes, from pooled reports plus Spigot's own probe. |
-| **Your clock** | When *you* are next eligible, per faucet, kept in your browser. A faucet can be flowing and still closed to you — different question, shown separately. |
+| **Says what happened last** | Per faucet: paid, refused, or nothing seen — from Spigot's own probe plus reports from developers who clicked through. |
+| **Shows the age of that answer** | Every verdict carries a timestamp. Past ten hours it stops claiming to be current and reads `unknown`. |
+| **Keeps your own clock** | When *you* are next eligible, per faucet, in your browser. A faucet can be flowing and still closed to you — different question, shown separately. |
 
-The health signal is the part that scales past the pool. That knowledge is generated hundreds of times an hour and currently evaporates in individual terminals. Pooling it costs the upstream faucets nothing and saves everyone else the trip.
+## The nine-hour cadence, and why the board admits it
+
+The probe asks each server-reachable faucet once every nine hours: the tightest interval the upstream's own eight-hour limit permits with the three-minute margin on top. One address, one host, no rotation.
+
+A board fed that slowly cannot answer "is it paying this second", so it does not pretend to. It answers what it can support — what happened the last time anyone looked, and how long ago that was — and prints the age beside the verdict so the reader can discount it. Anything older than ten hours is reported as `unknown` rather than as fact.
+
+Reports are what tighten this. The probe guarantees a floor of one observation per window; an afternoon of people clicking through and saying what happened can push the freshest data point to minutes old, and the same code reads better the moment it does.
+
+The schedule wakes every thirty minutes and is usually told "not yet". The nine-hour interval is enforced in `src/lib/faucets.ts`, not in the cron, because a cron pinned to nine hours drifts under GitHub's scheduler and eventually fires early — into a cooldown.
 
 ## What it will not do
 
-- **No farming.** One identity, one request per cooldown window, three minutes of margin on top of every published limit. A 429 pushes the next window out rather than starting a retry loop.
-- **No money.** No token, no fee, no paid tier, nothing to connect a mainnet wallet to. Devnet SOL is given away free by the people who issue it; reselling it would be selling something that is not ours.
-- **No key requests.** The pool signs with its own wallet and sends outward only. Nothing asks you for a seed phrase, a private key, or a signature — pasting a public address is the whole interaction.
+- **No farming.** One identity, one request per window, three minutes of margin on top of every published limit. A 429 pushes the next window out rather than starting a retry loop.
+- **No money.** No token, no fee, no paid tier, nothing to connect a mainnet wallet to.
+- **No key requests.** Spigot holds no funds and signs nothing. Pasting a public address is the whole interaction, and even that is optional.
 
 Devnet only. These tokens are worth nothing and are meant to stay that way.
 
@@ -58,10 +66,8 @@ npm run dev
 
 | Variable | What it is |
 |---|---|
-| `DATABASE_URL` | Neon Postgres. Holds the probe log, the reports, and the claim ledger. |
+| `DATABASE_URL` | Neon Postgres. Holds the probe log and the reports. |
 | `RELAY_TOKEN` | Shared secret between the schedule and `/api/relay/tick`. |
-| `SPIGOT_TREASURY_ADDRESS` | Public devnet address of the pool. |
-| `SPIGOT_TREASURY_SECRET` | The wallet's base58 export, or 64 bytes as a JSON array. Environment only — never a file path. |
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
@@ -70,7 +76,6 @@ Tables are created on first call, so there is no separate migration step. The bo
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/claim` | POST | `{ address }` → one SOL from the pool and a signature. |
 | `/api/status` | GET | The board. Add `?address=` for a personal clock. Public, writes nothing. |
 | `/api/report` | POST | `{ faucetId, address, outcome }` — what happened when you clicked through. |
 | `/api/relay/tick` | POST | Bearer-authenticated. The scheduled probe. |
@@ -86,12 +91,6 @@ Push, import into Vercel, set the variables there. Then add two repository secre
 
 ## Security
 
-The treasury secret enters through the environment and nowhere else. No code path reads a wallet file from disk, because a path inside a repository ends up deployed and readable. `.gitignore` blocks `.env*`, `*.key`, `*keypair*.json`, and `wallet*.txt` as a second line of defence.
+There is no wallet in this deployment. The probe generates a throwaway keypair in memory, uses it once, and discards it — nothing it receives is ever spent or swept, and no code path reads a key from disk or from the environment. `.gitignore` blocks `.env*`, `*.key`, `*keypair*.json`, and `wallet*.txt` regardless, as a second line of defence.
 
-`treasuryKeypair()` refuses to run if the secret and `SPIGOT_TREASURY_ADDRESS` disagree, so a deployment can never quietly sign with a wallet other than the one it publishes. A fee floor of 0.01 SOL is held back so the pool can always pay for its own transactions.
-
-The probe generates a throwaway keypair in memory, uses it once, and discards it — nothing it receives is ever spent or swept.
-
-Every field `/api/status` returns is already public: an address, a balance, timestamps, and outcome counts.
-
-If a treasury secret is ever pasted somewhere it should not be — a chat window, an issue, a screenshot — treat it as gone and generate another. Devnet makes that free, which is the one advantage of learning this here.
+Every field `/api/status` returns is already public: a faucet id, timestamps, and outcome counts.

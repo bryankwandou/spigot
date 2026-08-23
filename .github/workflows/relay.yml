@@ -1,12 +1,15 @@
 name: Faucet probe
 
 # Wakes every 30 minutes. The workflow does not decide when a faucet may be
-# called — it only asks. The endpoint holds the cooldown state and answers
-# "not yet" for anything still inside its window plus the margin.
+# called — it only asks. The endpoint holds the clock and answers "not yet" for
+# anything still inside its window.
 #
-# A fixed eight-hour cron would drift: GitHub's scheduler runs late under load,
-# and any attempt to compensate eventually fires early. Waking often and being
-# told no costs nothing.
+# The probe itself lands roughly every nine hours; that interval is enforced in
+# src/lib/faucets.ts, not here. A cron pinned to nine hours would drift, because
+# GitHub's scheduler runs late under load and any attempt to compensate
+# eventually fires early — into an upstream cooldown. Waking often and being
+# refused costs nothing, and it means a missed window is retried within half an
+# hour instead of waiting out another nine.
 on:
   schedule:
     - cron: "*/30 * * * *"

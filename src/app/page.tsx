@@ -1,7 +1,5 @@
 import { Mark, Wordmark } from "@/components/Mark";
 import { FaucetBoard } from "@/components/FaucetBoard";
-import { ClaimForm } from "@/components/ClaimForm";
-import { PoolStatus } from "@/components/PoolStatus";
 
 export default function Home() {
   return (
@@ -23,35 +21,18 @@ export default function Home() {
         </p>
 
         <h1 className="max-w-2xl text-4xl font-bold leading-[1.08] tracking-[-0.03em] sm:text-6xl">
-          Devnet SOL <span className="brand-text">on tap</span>.
+          Find out which faucet is <span className="brand-text">actually paying</span>.
         </h1>
 
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-mist">
-          Faucets go dry without saying so. You open four tabs, sign in twice, and find out the
-          hard way. Paste an address instead: draw from a pool someone already filled, and when
-          that runs out, see at a glance which faucet is still paying.
+          Devnet faucets go dry without announcing it. You open four tabs, sign in twice, clear a
+          human check, and get nothing. Spigot keeps a record of what each one did the last time
+          anybody asked, so you spend one click instead of four.
         </p>
-
-        <div className="mt-10">
-          <PoolStatus />
-        </div>
-
-        <div className="mt-6">
-          <ClaimForm />
-        </div>
       </section>
 
-      <section className="mt-28 border-t border-edge pt-12">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">
-          If the pool is dry, use the board
-        </h2>
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-mist">
-          Live status for every upstream faucet, plus your own cooldown once you paste an address.
-          Tell it what happened after you click through and the next person sees it.
-        </p>
-        <div className="mt-6">
-          <FaucetBoard />
-        </div>
+      <section className="mt-16">
+        <FaucetBoard />
       </section>
 
       <section className="mt-28 border-t border-edge pt-12">
@@ -61,23 +42,23 @@ export default function Home() {
           {[
             {
               n: "01",
-              t: "The pool is filled by hand, on purpose",
-              d: "The RPC airdrop meters on IP, not on wallet, so a hosted job collects nothing however many addresses it owns. That was measured, not assumed. Someone claims from the human-gated faucets and forwards it here, and the caps spread it across the people who could not get through at all.",
+              t: "A probe every nine hours, from one address",
+              d: "Spigot calls the devnet RPC airdrop itself on a fixed schedule, using a throwaway address it then discards. Nine hours is the tightest cadence the upstream's eight-hour limit allows once three minutes of headroom are added. One identity, one request per window, no rotation of any kind.",
             },
             {
               n: "02",
-              t: "Two clocks, because they are different questions",
-              d: "Whether a faucet is paying anyone right now has nothing to do with whether you personally are past its cooldown. A faucet can be flowing and still closed to you. The board answers both, side by side.",
+              t: "Reports from developers fill the gaps",
+              d: "Two of the three faucets sit behind a human check, so no automated probe can reach them honestly. What can reach them is you, after you click through. Say whether it paid, and the next person reads it instead of finding out the hard way.",
             },
             {
               n: "03",
-              t: "One probe per window, from one address",
-              d: "Spigot checks the RPC airdrop itself, once per cooldown window with three minutes of headroom, from a throwaway address it then discards. No wallet rotation, no egress rotation. Measured, not assumed: that faucet meters on IP, so extra wallets would change nothing anyway.",
+              t: "The verdict comes with its age attached",
+              d: "A board fed every nine hours cannot tell you what is true this second, and dressing it up as live would be inventing data. Each row shows what happened on the last check and how long ago that was. Past ten hours with no observation it stops claiming anything at all.",
             },
             {
               n: "04",
-              t: "You keep your own clock",
-              d: "Paste an address and it stays in your browser. Tell the board when a faucet paid you and it starts counting your next window, and everyone else sees one more data point on whether that faucet is alive.",
+              t: "Your own clock stays yours",
+              d: "Paste an address and it stays in your browser. Tell the board a faucet paid you and it starts counting your personal cooldown — a separate question from whether that faucet is paying anyone, and one the other tabs never answer.",
             },
           ].map((s) => (
             <li key={s.n} className="flex gap-5">
@@ -97,20 +78,27 @@ export default function Home() {
         </h2>
         <div className="mt-6 space-y-4 text-sm leading-relaxed text-mist">
           <p>
-            It will not farm faucets. Rotating wallets and egress addresses to slip past a limit
-            is the obvious way to make the numbers bigger, and it is the reason a project like
-            this would deserve to be shut down. One identity, one request per window, published
-            limits honoured with margin added on top.
+            It will not farm faucets. Rotating wallets and egress addresses to slip past a limit is
+            the obvious way to make the numbers look bigger, and it is the reason a project like
+            this would deserve to be shut down. It also does not work: the RPC airdrop was measured
+            counting against the calling IP rather than the receiving wallet, so extra addresses buy
+            nothing. One identity, one request per window, published limits honoured with margin on
+            top.
           </p>
           <p>
-            It will not charge you. There is no token, no fee, no paid tier, and nothing to
-            connect a mainnet wallet to. Devnet SOL is given away for free by the people who
-            issue it, and reselling it would be selling something that is not ours.
+            It will not hand out SOL. There is no pool here and no balance to drain. Spigot points
+            you at the faucet most likely to pay and gets out of the way — the SOL comes from the
+            people who issue it, on their terms.
           </p>
           <p>
-            It will not ask for your key. The pool signs with its own wallet and sends outward
-            only. Nothing here requests a seed phrase, a private key, or a signature from you —
-            pasting a public address is the entire interaction.
+            It will not charge you. No token, no fee, no paid tier, nothing to connect a mainnet
+            wallet to. Devnet SOL is given away for free by design, and putting a price on it would
+            be selling something that was never ours.
+          </p>
+          <p>
+            It will not ask for your key. Nothing here wants a seed phrase, a private key, or a
+            signature. Pasting a public address is the entire interaction, and even that is
+            optional.
           </p>
         </div>
       </section>

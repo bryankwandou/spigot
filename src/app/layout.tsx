@@ -15,13 +15,13 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Spigot — Devnet SOL on tap",
+  title: "Spigot — which devnet faucet paid last",
   description:
-    "One endpoint for Solana devnet funding. Spigot asks each upstream faucet on its own published schedule, holds what it receives in a public treasury, and hands it out on request.",
+    "A health board for Solana devnet faucets. Spigot probes each one on its own published schedule, pools what developers report, and prints the age of every verdict so you can tell fresh from stale.",
   openGraph: {
-    title: "Spigot — Devnet SOL on tap",
+    title: "Spigot — which devnet faucet paid last",
     description:
-      "One endpoint for Solana devnet funding, with every request and payout visible on-chain.",
+      "Whether each Solana devnet faucet paid or refused on the last check, and how long ago that check was.",
     type: "website",
   },
 };
