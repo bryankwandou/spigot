@@ -1,0 +1,34 @@
+name: Check
+
+# The health signal is arithmetic against a nine-hour cadence, and every way it
+# can break is quiet: the board keeps rendering, keeps looking maintained, and
+# starts asserting things the data cannot support. This runs on every push so a
+# drifted constant fails here instead of on the board.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test

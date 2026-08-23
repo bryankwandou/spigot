@@ -6,6 +6,10 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // The tests run straight through node's built-in runner, which resolves
+    // specifiers the way the runtime does and therefore needs the extension.
+    // Nothing is emitted from this config, so permitting it costs nothing.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
