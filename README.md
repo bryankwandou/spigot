@@ -61,7 +61,7 @@ npm run dev
 | `DATABASE_URL` | Neon Postgres. Holds the probe log, the reports, and the claim ledger. |
 | `RELAY_TOKEN` | Shared secret between the schedule and `/api/relay/tick`. |
 | `SPIGOT_TREASURY_ADDRESS` | Public devnet address of the pool. |
-| `SPIGOT_TREASURY_SECRET` | 64 bytes as a JSON array. Environment only — never a file path. |
+| `SPIGOT_TREASURY_SECRET` | The wallet's base58 export, or 64 bytes as a JSON array. Environment only — never a file path. |
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
