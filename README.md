@@ -72,6 +72,19 @@ npm run dev
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
 
+## Checks
+
+```bash
+npm run typecheck
+npm test
+```
+
+Twenty-four tests over `health.ts` and `faucets.ts` — the two modules that decide what the board is allowed to say. They run on every push via `.github/workflows/check.yml`.
+
+They pin boundaries rather than outputs, because every way this arithmetic breaks is quiet. A window narrowed below two probes, a staleness threshold that slips under the probe interval, a cooldown that loses its margin: none of those show a symptom. The board keeps rendering and starts asserting things the data cannot support.
+
+Node's built-in runner executes the TypeScript directly, so the suite adds no dependency.
+
 ## Endpoints
 
 | Route | Method | Purpose |
