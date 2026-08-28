@@ -123,3 +123,53 @@ export function describe(h: Health): string {
       return "refused on the last check";
   }
 }
+
+/**
+ * How long past the target cadence before both schedulers are presumed down.
+ *
+ * Two of them point at the probe endpoint. GitHub Actions wakes hourly but is
+ * free to drop scheduled runs entirely under load, and measurably does: over
+ * one recent day it fired at intervals of 2.4, 3.9, 10.4, 10.0 and 8.3 hours
+ * against a cron that asked for every thirty minutes. Vercel's own scheduler is
+ * the floor underneath that — it runs daily, and it does not skip.
+ *
+ * So a gap of eleven hours means GitHub was unlucky, which is ordinary. A gap
+ * past the daily floor plus two hours of slack means the floor failed too, and
+ * that is not a stale reading — that is a broken deployment.
+ */
+export const SCHEDULER_FLOOR_MS = 26 * 60 * 60 * 1000;
+
+export type SchedulerHealth = {
+  lastProbeAt: number | null;
+  /** When the next probe becomes permissible. Null before the first one. */
+  dueAt: number | null;
+  /** Milliseconds past `dueAt`, or 0 while still inside the window. */
+  overdueByMs: number;
+  /** False once the gap exceeds the guaranteed daily floor. */
+  healthy: boolean;
+};
+
+/**
+ * Whether the probe is still being called at all.
+ *
+ * The board already degrades honestly when its data goes stale — it prints
+ * `unknown` and says so. What it could not previously say is *why*: a faucet
+ * nobody has heard from and a scheduler that stopped calling look identical
+ * from the outside, and only one of them is a bug to fix. This separates them.
+ */
+export function schedulerHealth(
+  lastProbeAt: number | null,
+  probeIntervalMs: number,
+  now = Date.now(),
+): SchedulerHealth {
+  if (lastProbeAt === null) {
+    return { lastProbeAt: null, dueAt: null, overdueByMs: 0, healthy: true };
+  }
+  const dueAt = lastProbeAt + probeIntervalMs;
+  return {
+    lastProbeAt,
+    dueAt,
+    overdueByMs: Math.max(0, now - dueAt),
+    healthy: now - lastProbeAt <= SCHEDULER_FLOOR_MS,
+  };
+}

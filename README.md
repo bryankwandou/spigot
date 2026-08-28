@@ -46,7 +46,20 @@ A board fed that slowly cannot answer "is it paying this second", so it does not
 
 Reports are what tighten this. The probe guarantees a floor of one observation per window; an afternoon of people clicking through and saying what happened can push the freshest data point to minutes old, and the same code reads better the moment it does.
 
-The schedule wakes every thirty minutes and is usually told "not yet". The nine-hour interval is enforced in `src/lib/faucets.ts`, not in the cron, because a cron pinned to nine hours drifts under GitHub's scheduler and eventually fires early — into a cooldown.
+## Two schedulers, because one of them is allowed to not show up
+
+The probe is called by GitHub Actions hourly *and* by Vercel's own scheduler once a day. That redundancy is not belt-and-braces caution — it is a repair for a measured failure.
+
+An earlier version asked GitHub for a run every thirty minutes: forty-eight a day. It was granted five, spaced 2.4, 3.9, 10.4, 10.0 and 8.3 hours apart. GitHub silently drops scheduled runs when its queue is busy, and there is no error anywhere when it does. The board went twenty hours without an observation.
+
+To its credit the board *said so* — it printed `unknown` and reported its own data as stale rather than passing off a day-old reading as current. But it could not say why, and "this faucet is quiet" and "our scheduler died" are different problems with different fixes.
+
+Two changes follow from that:
+
+- **A floor that does not skip.** `vercel.json` runs the probe daily. GitHub stays as the opportunistic half that tightens the cadence toward nine hours whenever it does fire. Both call the same endpoint, the endpoint holds the clock, and whichever arrives early is told "not yet" — so running both costs nothing and cannot breach a cooldown.
+- **A signal for the plumbing itself.** `/api/status` now returns a `scheduler` block: when the last probe landed, when the next is due, how late it is, and whether the gap has passed the daily floor. Past that point the fault is the deployment, not the faucet.
+
+The nine-hour interval is still enforced in `src/lib/faucets.ts`, never in a cron. A cron pinned to nine hours drifts under a late scheduler and eventually fires early — into a cooldown.
 
 ## What it will not do
 
@@ -69,6 +82,7 @@ npm run dev
 | `DATABASE_URL` | Neon Postgres. Holds the probe log and the reports. |
 | `RELAY_TOKEN` | Shared secret between the schedule and `/api/relay/tick`. |
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
+| `CRON_SECRET` | Set in Vercel. Its own scheduler sends this as a bearer token. |
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
 
@@ -79,7 +93,7 @@ npm run typecheck
 npm test
 ```
 
-Twenty-four tests over `health.ts` and `faucets.ts` — the two modules that decide what the board is allowed to say. They run on every push via `.github/workflows/check.yml`.
+Thirty-two tests over `health.ts` and `faucets.ts` — the two modules that decide what the board is allowed to say. They run on every push via `.github/workflows/check.yml`.
 
 They pin boundaries rather than outputs, because every way this arithmetic breaks is quiet. A window narrowed below two probes, a staleness threshold that slips under the probe interval, a cooldown that loses its margin: none of those show a symptom. The board keeps rendering and starts asserting things the data cannot support.
 
@@ -91,7 +105,7 @@ Node's built-in runner executes the TypeScript directly, so the suite adds no de
 |---|---|---|
 | `/api/status` | GET | The board. Add `?address=` for a personal clock. Public, writes nothing. |
 | `/api/report` | POST | `{ faucetId, address, outcome }` — what happened when you clicked through. |
-| `/api/relay/tick` | POST | Bearer-authenticated. The scheduled probe. |
+| `/api/relay/tick` | POST, GET | Bearer-authenticated. The scheduled probe. GET exists because Vercel's scheduler issues one. |
 
 ## Deploying
 

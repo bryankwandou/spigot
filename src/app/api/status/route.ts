@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { FAUCETS, nextEligibleAt, PROBE_INTERVAL_MS } from "@/lib/faucets";
-import { healthFor, describe, HEALTH_WINDOW_MS, STALE_AFTER_MS } from "@/lib/health";
+import {
+  healthFor,
+  describe,
+  schedulerHealth,
+  HEALTH_WINDOW_MS,
+  STALE_AFTER_MS,
+} from "@/lib/health";
 import { eventsSince, lastReportFor, lastProbeAt, isConfigured, migrate } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +38,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ...shell,
       configured: false,
+      scheduler: { lastProbeAt: null, dueAt: null, overdueByMs: 0, healthy: false },
       faucets: FAUCETS.map((f) => ({
         ...f,
         health: {
@@ -81,5 +88,19 @@ export async function GET(req: Request) {
     };
   });
 
-  return NextResponse.json({ ...shell, configured: true, address, faucets });
+  // The freshest probe across every server-reachable faucet. If this is far
+  // enough behind, the fault is the scheduler rather than the faucets, and the
+  // board should be able to say which.
+  const freshestProbe = Object.values(probedAt).reduce<number | null>(
+    (a, b) => (b === null ? a : a === null ? b : Math.max(a, b)),
+    null,
+  );
+
+  return NextResponse.json({
+    ...shell,
+    configured: true,
+    scheduler: schedulerHealth(freshestProbe, PROBE_INTERVAL_MS, now),
+    address,
+    faucets,
+  });
 }

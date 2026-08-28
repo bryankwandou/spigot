@@ -9,6 +9,23 @@ export const maxDuration = 30;
 const RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 
 /**
+ * Two schedulers call this, and either is allowed to.
+ *
+ * `RELAY_TOKEN` is the GitHub Actions workflow. `CRON_SECRET` is Vercel's own
+ * scheduler, which injects that header itself. Neither is trusted more than the
+ * other because neither decides anything: the cooldown clock lives in
+ * `faucets.ts`, so an extra caller can only ever be told "not yet".
+ */
+function authorized(req: Request): boolean {
+  const header = req.headers.get("authorization");
+  if (!header) return false;
+  const accepted = [process.env.RELAY_TOKEN, process.env.CRON_SECRET].filter(
+    (t): t is string => Boolean(t),
+  );
+  return accepted.some((t) => header === `Bearer ${t}`);
+}
+
+/**
  * The scheduled probe.
  *
  * One request per faucet per cooldown window, from one throwaway address, from
@@ -18,13 +35,17 @@ const RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
  * nobody else has to burn their own daily allowance discovering it.
  *
  * Anything still inside its window is reported as skipped and not touched.
+ * Calling this more often than necessary is free and by design: two independent
+ * schedulers point at it, and the duplicate is answered with a skip.
  */
-export async function POST(req: Request) {
-  const token = process.env.RELAY_TOKEN;
-  if (!token) {
-    return NextResponse.json({ error: "RELAY_TOKEN is not configured." }, { status: 503 });
+async function tick(req: Request) {
+  if (!process.env.RELAY_TOKEN && !process.env.CRON_SECRET) {
+    return NextResponse.json(
+      { error: "Neither RELAY_TOKEN nor CRON_SECRET is configured." },
+      { status: 503 },
+    );
   }
-  if (req.headers.get("authorization") !== `Bearer ${token}`) {
+  if (!authorized(req)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
@@ -75,3 +96,8 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ checkedAt: now, probed, skipped });
 }
+
+export const POST = tick;
+
+/** Vercel's scheduler issues GET. Same work, same clock, same answer. */
+export const GET = tick;
