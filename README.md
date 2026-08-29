@@ -26,9 +26,41 @@ Three freshly generated addresses, no transaction history, six requests to the p
 The addresses were new, so the meter is not on the recipient — it is on the **egress IP**. Two consequences follow, and both are load-bearing:
 
 1. **Rotating wallets cannot work.** Not "should not" — cannot. The upstream is not counting wallets. Anyone selling you a multi-wallet devnet farmer is selling a loop that returns 429 in ten different fonts.
-2. **A hosted service cannot fill a pool.** Vercel and GitHub Actions run on shared egress that thousands of others have already spent. Automated intake from there is zero.
+2. **A hosted service cannot fill a pool on demand.** Vercel and GitHub Actions run on shared egress that thousands of others have already spent, so most requests from there are refused before they are considered.
 
-That second point is why Spigot hands out nothing. An earlier draft of this app carried a treasury someone had to top up by hand, which is not a product — it is a favour with a deploy pipeline attached. What survives the measurement is the part that scales: the observation itself.
+What that rules out is a dispenser: something you ask for SOL and it pays you now. What it does not rule out is patience. Devnet's airdrop is exhausted, not dead — it recovers, and a request placed every eight hours is present when it does, without anyone sitting and watching for the moment. The yield is honest rather than impressive, and it costs nothing to collect.
+
+So Spigot does two things with one request. It sends whatever it collects to the treasury, and it writes down what the faucet answered either way. The second is the part that scales: thousands of developers discover a dry faucet every day and that knowledge dies in each of their terminals separately. The refusals are the product.
+
+## Where the airdrops go
+
+Every collected airdrop is sent to one devnet account:
+
+```
+AsrL4uc9Ct7rhCASJXMhCtAX3k76RgkSsoe3pZFsBdyM
+```
+
+That is a public key, printed here on purpose. Crediting an account needs no signature, so the schedule can fill this treasury while the deployment holds no key, signs nothing, and is structurally unable to move a lamport of what it collects. Spending happens offline, by whoever holds the seed phrase, on their own machine.
+
+The asymmetry is the point. A service that could also spend would need a secret in its environment — and a secret in a serverless environment is a secret in every build log, every error report, and every future deploy. There is nothing here to leak.
+
+The board reads the balance straight from devnet rather than adding up its own log, because a confirmed signature and an unchanged balance is exactly the sort of disagreement worth being able to see.
+
+**Expect a modest yield, for a measured reason.** Most asks are refused; see below. The account fills when the upstream recovers, not on demand.
+
+### Handing it back out
+
+Whatever accumulates is available in six fixed sizes — 0.1, 0.25, 0.5, 1, 2 and 3 SOL — one per address every eight hours, the same window the faucet itself refills on. Handing out faster than the account fills would empty it in favour of whoever wrote the first loop, and fixed sizes stop any single request from taking the lot.
+
+A small reserve is never spent. An account drained to exactly zero cannot pay the fee to send anything again and would need its own airdrop just to become usable.
+
+### About the key
+
+Dispensing means signing, and signing means this deployment holds a private key. That is a real line and it is worth saying why it was crossed here and not earlier.
+
+The rule being followed is not *never hold a key*. It is *never hold a key whose loss costs anything*. This keypair was generated for this service alone, starting from an empty balance, and it exists on devnet only. Everything it will ever hold arrives free from a public faucet. If the environment leaked tomorrow the entire loss is some devnet SOL that anyone can request again.
+
+What must never happen — and does not happen here — is reusing a wallet that also holds mainnet funds, or one whose seed phrase covers other chains. That is not a larger version of this risk; it is a different risk, and no amount of convenience justifies putting one in an environment where secrets reach build logs, error reports and every future deploy.
 
 ## What it does
 
@@ -83,6 +115,8 @@ npm run dev
 | `RELAY_TOKEN` | Shared secret between the schedule and `/api/relay/tick`. |
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
 | `CRON_SECRET` | Set in Vercel. Its own scheduler sends this as a bearer token. |
+| `TREASURY_ADDRESS` | Optional. Public key that collected airdrops are sent to. |
+| `TREASURY_SECRET` | Devnet-only signing key, as a JSON byte array. Without it the dispenser stays closed and the rest of the board still works. |
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
 
@@ -93,7 +127,7 @@ npm run typecheck
 npm test
 ```
 
-Thirty-two tests over `health.ts` and `faucets.ts` — the two modules that decide what the board is allowed to say. They run on every push via `.github/workflows/check.yml`.
+Forty tests over `health.ts`, `faucets.ts` and `treasury.ts` — the modules that decide what the board is allowed to say and what it is allowed to hand out. They run on every push via `.github/workflows/check.yml`.
 
 They pin boundaries rather than outputs, because every way this arithmetic breaks is quiet. A window narrowed below two probes, a staleness threshold that slips under the probe interval, a cooldown that loses its margin: none of those show a symptom. The board keeps rendering and starts asserting things the data cannot support.
 
@@ -105,6 +139,7 @@ Node's built-in runner executes the TypeScript directly, so the suite adds no de
 |---|---|---|
 | `/api/status` | GET | The board. Add `?address=` for a personal clock. Public, writes nothing. |
 | `/api/report` | POST | `{ faucetId, address, outcome }` — what happened when you clicked through. |
+| `/api/dispense` | POST | `{ address, sol }` — asks for a grant. One per address per window. |
 | `/api/relay/tick` | POST, GET | Bearer-authenticated. The scheduled probe. GET exists because Vercel's scheduler issues one. |
 
 ## Deploying

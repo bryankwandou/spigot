@@ -27,13 +27,15 @@ test("a faucet never asked is eligible immediately", () => {
   }
 });
 
-test("the nine-hour cadence overrides a shorter upstream cooldown", () => {
+test("the published cooldown and the margin are exactly the cadence", () => {
   // The RPC airdrop publishes eight hours. Our own interval is longer, so it
-  // is the one that binds — this is what makes the schedule nine-hourly in
+  // is the one that binds — this is what makes the schedule real rather than
   // fact rather than only in the comment above the cron.
   const rpc = byId("solana-rpc-airdrop");
   assert.ok(rpc, "the RPC faucet must exist");
-  assert.ok(rpc.cooldownMs + COOLDOWN_MARGIN_MS < PROBE_INTERVAL_MS);
+  // The RPC faucet publishes eight hours; the cadence is that plus the margin,
+  // so for this faucet the two limits coincide and neither is slack.
+  assert.equal(rpc.cooldownMs + COOLDOWN_MARGIN_MS, PROBE_INTERVAL_MS);
   assert.equal(nextEligibleAt(rpc, NOW), NOW + PROBE_INTERVAL_MS);
 });
 

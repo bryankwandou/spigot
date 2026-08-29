@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { PROBE_INTERVAL_MS } from "../faucets.ts";
 import { healthFor, describe, HEALTH_WINDOW_MS, STALE_AFTER_MS } from "../health.ts";
 import type { Event, Outcome } from "../store.ts";
 
 /**
  * The calibration is the product. Every constant here was chosen against a
- * nine-hour probe cadence, and the failure mode if one drifts is silent: the
+ * probe cadence, and the failure mode if one drifts is silent: the
  * board keeps rendering, keeps looking maintained, and starts asserting things
  * it cannot support. These tests exist to make that drift loud.
  */
@@ -89,10 +90,16 @@ test("an observation just inside the threshold still counts", () => {
 });
 
 test("the staleness threshold sits above the probe interval", () => {
-  // A board merely waiting for its next nine-hourly probe must not read as
+  // A board merely waiting for its next scheduled probe must not read as
   // abandoned. If these ever cross, every row goes unknown between probes.
-  assert.ok(STALE_AFTER_MS > 9 * HOUR, "stale threshold must exceed the probe interval");
-  assert.ok(HEALTH_WINDOW_MS >= 2 * 9 * HOUR, "window must hold at least two probes");
+  assert.ok(
+    STALE_AFTER_MS > PROBE_INTERVAL_MS,
+    "stale threshold must exceed the probe interval",
+  );
+  assert.ok(
+    HEALTH_WINDOW_MS >= 2 * PROBE_INTERVAL_MS,
+    "window must hold at least two probes",
+  );
 });
 
 test("observations older than the window are ignored entirely", () => {

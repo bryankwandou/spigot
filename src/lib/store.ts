@@ -60,6 +60,17 @@ export async function migrate(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS reports_faucet_at ON reports (faucet_id, at DESC)`;
   await sql`CREATE INDEX IF NOT EXISTS reports_address_at ON reports (address, at DESC)`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS dispenses (
+      id        BIGSERIAL PRIMARY KEY,
+      address   TEXT        NOT NULL,
+      at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      sol       DOUBLE PRECISION NOT NULL,
+      signature TEXT        NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS dispenses_address_at ON dispenses (address, at DESC)`;
 }
 
 /** When Spigot last probed a faucet, granted or not. Drives our own cooldown. */
@@ -150,4 +161,41 @@ export async function eventsSince(sinceMs: number): Promise<Event[]> {
     source: String(r.source) as "probe" | "report",
     detail: r.detail === null ? null : String(r.detail),
   }));
+}
+
+/**
+ * When this address was last paid, which is the whole rate limit.
+ *
+ * Written before the transfer is attempted would be safer against a double
+ * spend but would charge people for failures; written after means a crash
+ * between send and insert gives someone a free second turn. The second failure
+ * costs devnet SOL that arrived free, the first costs someone their turn for
+ * eight hours, so this errs toward the cheaper mistake.
+ */
+export async function lastDispenseAt(address: string): Promise<number | null> {
+  const sql = db();
+  const rows = (await sql`
+    SELECT at FROM dispenses WHERE address = ${address} ORDER BY at DESC LIMIT 1
+  `) as Array<{ at: string }>;
+  return rows.length ? new Date(rows[0].at).getTime() : null;
+}
+
+export async function recordDispense(
+  address: string,
+  sol: number,
+  signature: string,
+): Promise<void> {
+  const sql = db();
+  await sql`
+    INSERT INTO dispenses (address, sol, signature) VALUES (${address}, ${sol}, ${signature})
+  `;
+}
+
+/** Running totals, for the board. Nothing here identifies anyone. */
+export async function dispenseTotals(): Promise<{ count: number; sol: number }> {
+  const sql = db();
+  const rows = (await sql`
+    SELECT COUNT(*)::int AS count, COALESCE(SUM(sol), 0)::float8 AS sol FROM dispenses
+  `) as Array<{ count: number; sol: number }>;
+  return rows.length ? { count: rows[0].count, sol: rows[0].sol } : { count: 0, sol: 0 };
 }

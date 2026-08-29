@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { Connection, Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { probeable, isEligible, nextEligibleAt } from "@/lib/faucets";
+import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbeAt, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -25,14 +26,52 @@ function authorized(req: Request): boolean {
   return accepted.some((t) => header === `Bearer ${t}`);
 }
 
+/** First line only. Faucet errors arrive with stack traces we have no use for. */
+function firstLine(msg: string): string {
+  return msg.split("\n")[0].slice(0, 300);
+}
+
 /**
- * The scheduled probe.
+ * One attempt at the airdrop. Returns what the faucet said, not what we hoped.
+ */
+async function attempt(
+  conn: Connection,
+): Promise<{ outcome: Outcome; detail: string | null }> {
+  try {
+    const sig = await conn.requestAirdrop(treasuryKey(), LAMPORTS_PER_SOL * 2);
+    const bh = await conn.getLatestBlockhash();
+    await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
+    return { outcome: "granted", detail: sig };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const dry = /run dry|airdrop limit|429|Too Many Requests/i.test(msg);
+    return {
+      outcome: dry ? "dry" : "failed",
+      detail: firstLine(msg),
+    };
+  }
+}
+
+/**
+ * The scheduled collection.
  *
- * One request per faucet per cooldown window, from one throwaway address, from
- * one host. The point is not to collect SOL — the probe address is discarded
- * and whatever lands there stays there. The point is to find out, on the
- * community's behalf, whether the faucet is paying anyone right now, so that
- * nobody else has to burn their own daily allowance discovering it.
+ * Every eight hours and three minutes, this asks the devnet airdrop once - twice
+ * if the first answer was not a refusal on the merits - and sends whatever it
+ * gets to the treasury address. That address is a public key. Crediting an
+ * account needs no signature, so this deployment can fill the treasury while
+ * holding no key, signing nothing, and being unable to move a lamport of what
+ * it collects.
+ *
+ * The yield is honest rather than impressive, and the reason is measured. The
+ * upstream meters on egress IP, and this runs on shared serverless egress that
+ * thousands of people have already spent. Most ticks will be refused. What
+ * makes the schedule worth running anyway is that devnet's airdrop is not dead,
+ * only exhausted - it recovers, and a patient request placed every eight hours
+ * is present when it does. Nobody has to sit and watch for the moment.
+ *
+ * Every attempt is written down whether it paid or not, which is what turns a
+ * collector into a health board: the refusals are the signal other developers
+ * actually need.
  *
  * Anything still inside its window is reported as skipped and not touched.
  * Calling this more often than necessary is free and by design: two independent
@@ -73,28 +112,26 @@ async function tick(req: Request) {
       continue;
     }
 
-    let outcome: Outcome = "failed";
-    let detail: string | null = null;
-
-    try {
-      const probe = Keypair.generate();
-      const sig = await conn.requestAirdrop(probe.publicKey, LAMPORTS_PER_SOL);
-      const bh = await conn.getLatestBlockhash();
-      await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
-      outcome = "granted";
-      detail = sig;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const dry = /run dry|airdrop limit|429|Too Many Requests/i.test(msg);
-      outcome = dry ? "dry" : "failed";
-      detail = msg.split("\n")[0].slice(0, 300);
+    // Two attempts, as agreed, and no more. The second exists because a
+    // transient RPC error is not the same as a refusal and should not cost the
+    // whole eight-hour window. A genuine "run dry" is an answer, not a hiccup,
+    // so it is taken at its word and not retried.
+    let { outcome, detail } = await attempt(conn);
+    if (outcome === "failed") {
+      const second = await attempt(conn);
+      outcome = second.outcome;
+      detail = second.detail;
     }
 
     await recordProbe(f.id, outcome, detail);
     probed.push({ faucetId: f.id, outcome, detail });
   }
 
-  return NextResponse.json({ checkedAt: now, probed, skipped });
+  // Read the account after the attempts rather than trusting them. A confirmed
+  // signature and an unchanged balance is exactly the discrepancy worth seeing.
+  const treasury = await treasuryState(conn);
+
+  return NextResponse.json({ checkedAt: now, treasury, probed, skipped });
 }
 
 export const POST = tick;

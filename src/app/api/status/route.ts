@@ -7,7 +7,16 @@ import {
   HEALTH_WINDOW_MS,
   STALE_AFTER_MS,
 } from "@/lib/health";
-import { eventsSince, lastReportFor, lastProbeAt, isConfigured, migrate } from "@/lib/store";
+import {
+  eventsSince,
+  lastReportFor,
+  lastProbeAt,
+  isConfigured,
+  migrate,
+  dispenseTotals,
+} from "@/lib/store";
+import { Connection } from "@solana/web3.js";
+import { treasuryState, TIERS } from "@/lib/treasury";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +109,11 @@ export async function GET(req: Request) {
     ...shell,
     configured: true,
     scheduler: schedulerHealth(freshestProbe, PROBE_INTERVAL_MS, now),
+    tiers: TIERS,
+    treasury: await treasuryState(
+      new Connection(process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com", "confirmed"),
+    ),
+    dispensed: await dispenseTotals(),
     address,
     faucets,
   });

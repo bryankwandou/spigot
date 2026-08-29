@@ -21,6 +21,25 @@ type Row = {
   yourNextEligibleAt: number | null;
 };
 
+type Treasury = {
+  address: string;
+  lamports: number | null;
+  sol: number | null;
+  explorerUrl: string;
+  affordableTier: number | null;
+  canDispense: boolean;
+  error: string | null;
+};
+
+type Grant = { sent: number; explorerUrl: string } | null;
+
+type Scheduler = {
+  lastProbeAt: number | null;
+  dueAt: number | null;
+  overdueByMs: number;
+  healthy: boolean;
+};
+
 const DOT: Record<Status, string> = {
   flowing: "bg-aqua",
   patchy: "bg-amber-400",
@@ -51,6 +70,13 @@ export function FaucetBoard() {
   const [address, setAddress] = useState("");
   const [tracked, setTracked] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [scheduler, setScheduler] = useState<Scheduler | null>(null);
+  const [treasury, setTreasury] = useState<Treasury | null>(null);
+  const [tiers, setTiers] = useState<number[]>([]);
+  const [dispensed, setDispensed] = useState<{ count: number; sol: number } | null>(null);
+  const [grant, setGrant] = useState<Grant>(null);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [asking, setAsking] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Keyed by faucet so a rejection appears against the row it belongs to.
   const [notice, setNotice] = useState<{ faucetId: string; text: string } | null>(null);
@@ -61,6 +87,10 @@ export function FaucetBoard() {
       const r = await fetch(`/api/status${q}`, { cache: "no-store" });
       const j = await r.json();
       setRows(j.faucets ?? []);
+      setScheduler(j.scheduler ?? null);
+      setTreasury(j.treasury ?? null);
+      setTiers(j.tiers ?? []);
+      setDispensed(j.dispensed ?? null);
     } catch {
       /* leave the previous board up rather than blanking it on a blip */
     }
@@ -125,8 +155,128 @@ export function FaucetBoard() {
     }
   }
 
+  async function ask(sol: number) {
+    if (!tracked) return;
+    setAsking(sol);
+    setGrant(null);
+    setGrantError(null);
+    try {
+      const r = await fetch("/api/dispense", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ address: tracked, sol }),
+      });
+      const body = await r.json().catch(() => null);
+      if (!r.ok) {
+        setGrantError(body?.error ?? "The dispenser did not answer.");
+        return;
+      }
+      setGrant({ sent: body.sent, explorerUrl: body.explorerUrl });
+      await load(tracked);
+    } catch {
+      setGrantError("Could not reach the dispenser. Nothing was sent.");
+    } finally {
+      setAsking(null);
+    }
+  }
+
+  // A board with nothing to say and a board nobody is asking are the same
+  // picture from the outside, and only one of them is our fault. Say which.
+  const stalled = scheduler !== null && !scheduler.healthy;
+
   return (
     <div>
+      {stalled && (
+        <p
+          role="status"
+          className="mb-6 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+        >
+          The scheduled check has not run in over a day, so every reading below is
+          older than it looks. This is a fault on our side, not a verdict on the
+          faucets.
+        </p>
+      )}
+      {treasury && (
+        <section className="mb-6 rounded-lg border border-edge bg-white/[0.02] px-4 py-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-medium text-mute">Collected so far</h2>
+            <a
+              href={treasury.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-xs text-mute underline decoration-edge underline-offset-4 hover:text-fg"
+            >
+              {treasury.address.slice(0, 6)}…{treasury.address.slice(-6)}
+            </a>
+          </div>
+          <p className="mt-2 font-mono text-2xl tabular-nums text-fg">
+            {treasury.sol === null ? "—" : `${treasury.sol.toFixed(4)} SOL`}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-mute">
+            {treasury.error
+              ? "The balance could not be read just now. The address above is still the one being filled."
+              : "Read from devnet, not from our own log. Every eight hours the schedule asks the airdrop once and sends whatever it gets here. Most asks are refused — this account fills when the faucet recovers, not on demand."}
+            {dispensed && dispensed.count > 0 && (
+              <> {dispensed.sol.toFixed(2)} SOL has gone back out across {dispensed.count} grants.</>
+            )}
+          </p>
+
+          {tracked ? (
+            <div className="mt-4 border-t border-edge pt-4">
+              <p className="mb-2 text-xs text-mute">
+                One grant per address every eight hours. Pick a size.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {tiers.map((t) => {
+                  const short = treasury.affordableTier !== null && t > treasury.affordableTier;
+                  const off = !treasury.canDispense || short || asking !== null;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => ask(t)}
+                      disabled={off}
+                      className="rounded border border-edge px-3 py-1.5 font-mono text-sm tabular-nums transition-colors enabled:hover:border-aqua enabled:hover:text-aqua disabled:opacity-30"
+                      title={short ? "More than the treasury can cover right now" : undefined}
+                    >
+                      {asking === t ? "sending…" : `${t} SOL`}
+                    </button>
+                  );
+                })}
+              </div>
+              {!treasury.canDispense && !treasury.error && (
+                <p className="mt-2 text-xs text-mute">
+                  {treasury.affordableTier === null
+                    ? "Nothing to hand out yet. The account fills from the faucet, which is refusing us too."
+                    : "The dispenser is not configured to sign, so nothing can be sent right now."}
+                </p>
+              )}
+              {grantError && (
+                <p role="status" className="mt-2 text-xs text-rose-300">
+                  {grantError}
+                </p>
+              )}
+              {grant && (
+                <p role="status" className="mt-2 text-xs text-aqua">
+                  Sent {grant.sent} SOL.{" "}
+                  <a
+                    href={grant.explorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-4"
+                  >
+                    See the transaction
+                  </a>
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 border-t border-edge pt-4 text-xs text-mute">
+              Enter an address below to request a grant.
+            </p>
+          )}
+        </section>
+      )}
       <form onSubmit={track} className="flex flex-col gap-3 sm:flex-row">
         <input
           value={address}
