@@ -54,6 +54,8 @@ Whatever accumulates is available in six fixed sizes — 0.1, 0.25, 0.5, 1, 2 an
 
 A small reserve is never spent. An account drained to exactly zero cannot pay the fee to send anything again and would need its own airdrop just to become usable.
 
+`/api/status` reports `signerReady` separately from the balance. One flag for both would make a missing or mismatched key look exactly like an empty account, and the wrong problem would get investigated for a week.
+
 ### About the key
 
 Dispensing means signing, and signing means this deployment holds a private key. That is a real line and it is worth saying why it was crossed here and not earlier.
@@ -116,7 +118,7 @@ npm run dev
 | `SOLANA_RPC_URL` | Optional. Defaults to the public devnet endpoint. |
 | `CRON_SECRET` | Set in Vercel. Its own scheduler sends this as a bearer token. |
 | `TREASURY_ADDRESS` | Optional. Public key that collected airdrops are sent to. |
-| `TREASURY_SECRET` | Devnet-only signing key, as a JSON byte array. Without it the dispenser stays closed and the rest of the board still works. |
+| `TREASURY_SECRET` | Devnet-only signing key, as a JSON byte array. Without it the dispenser stays closed and the rest of the board still works. Rejected if it does not match `TREASURY_ADDRESS`. |
 
 Tables are created on first call, so there is no separate migration step. The board degrades to `unknown` rather than erroring when `DATABASE_URL` is absent.
 

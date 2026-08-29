@@ -27,6 +27,7 @@ type Treasury = {
   sol: number | null;
   explorerUrl: string;
   affordableTier: number | null;
+  signerReady: boolean;
   canDispense: boolean;
   error: string | null;
 };
@@ -246,9 +247,9 @@ export function FaucetBoard() {
               </div>
               {!treasury.canDispense && !treasury.error && (
                 <p className="mt-2 text-xs text-mute">
-                  {treasury.affordableTier === null
-                    ? "Nothing to hand out yet. The account fills from the faucet, which is refusing us too."
-                    : "The dispenser is not configured to sign, so nothing can be sent right now."}
+                  {!treasury.signerReady
+                    ? "The dispenser has no signing key configured, so nothing can be sent."
+                    : "Nothing to hand out yet. The account fills from the faucet, which is refusing us too."}
                 </p>
               )}
               {grantError && (

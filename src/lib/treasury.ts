@@ -83,6 +83,12 @@ export type TreasuryState = {
   explorerUrl: string;
   /** Largest tier the balance can currently cover, or null if none can be. */
   affordableTier: number | null;
+  /**
+   * Whether a valid signing key is loaded, reported separately from the
+   * balance. With one flag for both, a missing or mismatched key looks exactly
+   * like an empty account, and the wrong problem gets investigated for a week.
+   */
+  signerReady: boolean;
   canDispense: boolean;
   error: string | null;
 };
@@ -102,12 +108,14 @@ export async function treasuryState(conn: Connection): Promise<TreasuryState> {
     const lamports = await conn.getBalance(treasuryKey(), "confirmed");
     const spendable = Math.max(0, lamports - RESERVE_LAMPORTS);
     const affordable = [...TIERS].reverse().find((t) => t * LAMPORTS_PER_SOL <= spendable) ?? null;
+    const signerReady = treasurySigner() !== null;
     return {
       ...base,
       lamports,
       sol: lamports / LAMPORTS_PER_SOL,
       affordableTier: affordable,
-      canDispense: affordable !== null && treasurySigner() !== null,
+      signerReady,
+      canDispense: affordable !== null && signerReady,
       error: null,
     };
   } catch (e) {
@@ -116,6 +124,7 @@ export async function treasuryState(conn: Connection): Promise<TreasuryState> {
       lamports: null,
       sol: null,
       affordableTier: null,
+      signerReady: treasurySigner() !== null,
       canDispense: false,
       error: e instanceof Error ? e.message.split("\n")[0].slice(0, 200) : "unreadable",
     };
