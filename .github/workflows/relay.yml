@@ -1,25 +1,31 @@
 name: Faucet probe
 
-# Wakes hourly, at seventeen minutes past. The workflow does not decide when a
-# faucet may be called — it only asks. The endpoint holds the clock and answers
-# "not yet" for anything still inside its window.
+# Wakes hourly at seventeen past, and then keeps asking on its own.
 #
-# The probe itself should land roughly every nine hours; that interval is
-# enforced in src/lib/faucets.ts, not here. A cron pinned to nine hours would
-# drift, because GitHub's scheduler runs late under load and any attempt to
-# compensate eventually fires early — into an upstream cooldown.
+# The workflow never decides when a faucet may be called. The endpoint holds
+# the clock — 8h3m after a grant, an hour after a refusal — and answers "not
+# yet" to anything early. Everything here is about being present often enough
+# that the clock gets a chance to say yes.
 #
-# This asks for every hour rather than every thirty minutes, and asks off the
-# hour, because GitHub drops scheduled runs outright when its queue is busy and
-# the top of the hour is the busiest moment there is. That dropping is not
-# theoretical: an earlier version of this file asked for every thirty minutes
-# and was granted five runs in a day, spaced 2.4, 3.9, 10.4, 10.0 and 8.3 hours
-# apart — long enough that the board went twenty hours without an observation
-# and correctly reported that it no longer knew anything.
+# Being present is the hard part, because GitHub drops scheduled runs outright
+# when its queue is busy. That is measured, not feared: an earlier version asked
+# every thirty minutes and was granted five runs in a day, spaced 2.4, 3.9,
+# 10.4, 10.0 and 8.3 hours apart. Asking hourly and off the hour helps, and is
+# still not enough — a probe that wants to retry hourly cannot rely on a
+# scheduler that skips eight of them in a row.
 #
-# So this schedule is the opportunistic half. The guaranteed half is a daily
-# cron in vercel.json, which does not skip. Both call the same endpoint and the
-# endpoint refuses whichever one is early, so running both costs nothing.
+# So a run does not exit after one request. It stays alive and knocks every
+# fifty-five minutes for most of a working day. GitHub caps a job at six hours,
+# which is the only reason this stops at six rounds. The repository is public,
+# so the minutes are free, and a sleeping runner costs nothing but a slot.
+#
+# `cancel-in-progress: true` is deliberate. When the next scheduled run does
+# arrive it should replace the heartbeat rather than queue behind it: one live
+# prober at a time, always the freshest. If the schedule is dropped, the run
+# already going keeps the hourly cadence by itself.
+#
+# The guaranteed floor underneath all of this is the daily cron in vercel.json,
+# which does not skip. Both call the same endpoint; the early one is refused.
 
 on:
   schedule:
@@ -28,7 +34,7 @@ on:
 
 concurrency:
   group: faucet-relay
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -36,12 +42,15 @@ permissions:
 jobs:
   relay:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Six hours is GitHub's ceiling for a job. Sit just under it.
+    timeout-minutes: 350
     steps:
-      - name: Ask which faucets are due for a probe
+      - name: Knock hourly for as long as this runner is allowed to live
         env:
           RELAY_URL: ${{ secrets.RELAY_URL }}
           RELAY_TOKEN: ${{ secrets.RELAY_TOKEN }}
+          ROUNDS: "6"
+          GAP_SECONDS: "3300"
         run: |
           set -euo pipefail
 
@@ -56,21 +65,38 @@ jobs:
             exit 1
           fi
 
-          code=$(curl -sS -o response.json -w '%{http_code}' \
-            --max-time 120 \
-            -X POST "$RELAY_URL/api/relay/tick" \
-            -H "Authorization: Bearer $RELAY_TOKEN" \
-            -H "Content-Type: application/json")
+          failures=0
 
-          echo "Endpoint responded $code"
-          # Safe to print: the response carries faucet ids, outcomes and
-          # timestamps. No key crosses this boundary.
-          cat response.json
-          echo
+          for round in $(seq 1 "$ROUNDS"); do
+            echo "--- round $round of $ROUNDS at $(date -u '+%Y-%m-%dT%H:%M:%SZ') ---"
 
-          # 200 means work was done or nothing was due. 429 means we asked too
-          # early, which is a scheduling bug worth seeing but not a red run.
-          if [ "$code" = "200" ] || [ "$code" = "429" ]; then
-            exit 0
+            code=$(curl -sS -o response.json -w '%{http_code}' \
+              --max-time 120 \
+              -X POST "$RELAY_URL/api/relay/tick" \
+              -H "Authorization: Bearer $RELAY_TOKEN" \
+              -H "Content-Type: application/json") || code="000"
+
+            echo "Endpoint responded $code"
+            # Safe to print: the response carries faucet ids, outcomes and
+            # timestamps. No key crosses this boundary.
+            cat response.json || true
+            echo
+
+            # 200 means work was done or nothing was due. 429 means we asked
+            # too early, which is worth seeing but is not a broken deployment.
+            case "$code" in
+              200|429) ;;
+              *) failures=$((failures + 1)) ;;
+            esac
+
+            # A bad round is not a reason to stop knocking. The next one is
+            # fifty-five minutes away and the faucet may have recovered by then.
+            if [ "$round" -lt "$ROUNDS" ]; then
+              sleep "$GAP_SECONDS"
+            fi
+          done
+
+          if [ "$failures" -gt 0 ]; then
+            echo "$failures of $ROUNDS rounds could not reach the endpoint."
+            exit 1
           fi
-          exit 1
