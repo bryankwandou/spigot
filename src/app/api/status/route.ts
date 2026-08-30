@@ -4,6 +4,7 @@ import {
   byId,
   nextEligibleAt,
   probeIntervalFor,
+  isProbeConfigured,
   PROBE_INTERVAL_MS,
   RETRY_INTERVAL_MS,
 } from "@/lib/faucets";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/store";
 import { Connection } from "@solana/web3.js";
 import { treasuryState, TIERS } from "@/lib/treasury";
+import { capacityOf } from "@/lib/capacity";
 import type { Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -125,13 +127,22 @@ export async function GET(req: Request) {
     ? probeIntervalFor(byId(freshest[0]) ?? FAUCETS[0], freshest[1].outcome)
     : PROBE_INTERVAL_MS;
 
+  const treasury = await treasuryState(
+    new Connection(process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com", "confirmed"),
+  );
+
   return NextResponse.json({
     ...shell,
     configured: true,
     scheduler: schedulerHealth(freshestProbe, dueInterval, now),
     tiers: TIERS,
-    treasury: await treasuryState(
-      new Connection(process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com", "confirmed"),
+    treasury,
+    // What it can actually pay out, and how fast it refills. A balance alone
+    // does not answer "will it pay me, and if not, when", which is the only
+    // question anyone arriving here has.
+    capacity: capacityOf(
+      treasury.lamports,
+      FAUCETS.filter((f) => f.access === "server" && isProbeConfigured(f, process.env)),
     ),
     dispensed: await dispenseTotals(),
     address,

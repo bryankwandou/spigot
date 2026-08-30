@@ -34,6 +34,15 @@ type Treasury = {
 
 type Grant = { sent: number; explorerUrl: string } | null;
 
+type Capacity = {
+  spendableSol: number;
+  reservedSol: number;
+  grantsPerTier: Array<{ sol: number; grants: number }>;
+  maxGrants: number;
+  dailyCeilingSol: number;
+  daysToFillLargestTier: number | null;
+};
+
 type Scheduler = {
   lastProbeAt: number | null;
   dueAt: number | null;
@@ -75,12 +84,39 @@ export function FaucetBoard() {
   const [treasury, setTreasury] = useState<Treasury | null>(null);
   const [tiers, setTiers] = useState<number[]>([]);
   const [dispensed, setDispensed] = useState<{ count: number; sol: number } | null>(null);
+  const [capacity, setCapacity] = useState<Capacity | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [grant, setGrant] = useState<Grant>(null);
   const [grantError, setGrantError] = useState<string | null>(null);
   const [asking, setAsking] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Keyed by faucet so a rejection appears against the row it belongs to.
   const [notice, setNotice] = useState<{ faucetId: string; text: string } | null>(null);
+
+  /**
+   * Hand a volunteer the treasury address and the faucet, and get out of the way.
+   *
+   * This is the one place the community can add supply that no schedule can
+   * reach: the two web faucets sit behind a sign-in and a human check, which an
+   * automated probe cannot honestly pass. A person can, once, as themselves.
+   *
+   * What it deliberately does not do is pretend that more clicks mean more SOL.
+   * Both of these meter on the receiving address, so the first volunteer of the
+   * window fills the account and everyone after is refused. Saying otherwise
+   * would send people to spend their own daily allowance on a request that was
+   * never going to land.
+   */
+  const helpFill = useCallback(async (faucetId: string, claimUrl: string, addr: string) => {
+    try {
+      await navigator.clipboard.writeText(addr);
+      setCopied(faucetId);
+      window.setTimeout(() => setCopied(null), 4000);
+    } catch {
+      // Clipboard access can be refused outright, and the address is on screen
+      // anyway. Opening the faucet is still the useful half.
+    }
+    window.open(claimUrl, "_blank", "noopener,noreferrer");
+  }, []);
 
   const load = useCallback(async (addr: string | null) => {
     const q = addr ? `?address=${encodeURIComponent(addr)}` : "";
@@ -92,6 +128,7 @@ export function FaucetBoard() {
       setTreasury(j.treasury ?? null);
       setTiers(j.tiers ?? []);
       setDispensed(j.dispensed ?? null);
+      setCapacity(j.capacity ?? null);
     } catch {
       /* leave the previous board up rather than blanking it on a blip */
     }
@@ -213,10 +250,45 @@ export function FaucetBoard() {
           <p className="mt-2 font-mono text-2xl tabular-nums text-fg">
             {treasury.sol === null ? "—" : `${treasury.sol.toFixed(4)} SOL`}
           </p>
+          {capacity && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-3 text-xs text-mute">
+              <span>
+                <span className="text-mute">Ready to hand out </span>
+                <span className="font-mono tabular-nums text-fg">
+                  {capacity.spendableSol.toFixed(3)} SOL
+                </span>
+              </span>
+              <span>
+                <span className="text-mute">Grants left </span>
+                <span className="font-mono tabular-nums text-fg">{capacity.maxGrants}</span>
+                <span className="text-mute"> at 0.1 SOL</span>
+              </span>
+              <span>
+                <span className="text-mute">Refills at most </span>
+                <span className="font-mono tabular-nums text-fg">
+                  {capacity.dailyCeilingSol.toFixed(1)} SOL
+                </span>
+                <span className="text-mute">/day</span>
+              </span>
+              <span className="font-mono tabular-nums text-mute">
+                {capacity.reservedSol.toFixed(2)} SOL held for fees
+              </span>
+            </div>
+          )}
+          {capacity && capacity.maxGrants === 0 && capacity.daysToFillLargestTier !== null && (
+            <p className="mt-2 text-xs text-mute">
+              Empty right now. At the published rates a full 3 SOL tier is about{" "}
+              <span className="font-mono tabular-nums text-fg">
+                {capacity.daysToFillLargestTier.toFixed(1)}
+              </span>{" "}
+              days of collecting away — and that is a ceiling, not a forecast. It assumes every ask
+              is granted, and most are refused.
+            </p>
+          )}
           <p className="mt-2 text-xs leading-relaxed text-mute">
             {treasury.error
               ? "The balance could not be read just now. The address above is still the one being filled."
-              : "Read from devnet, not from our own log. Every eight hours the schedule asks the airdrop once and sends whatever it gets here. Most asks are refused — this account fills when the faucet recovers, not on demand."}
+              : "Read from devnet, not from our own log. The schedule asks each reachable faucet once per its own window and sends whatever it gets here. Most asks are refused — this account fills when a faucet recovers, not on demand."}
             {dispensed && dispensed.count > 0 && (
               <> {dispensed.sol.toFixed(2)} SOL has gone back out across {dispensed.count} grants.</>
             )}
@@ -275,6 +347,38 @@ export function FaucetBoard() {
             <p className="mt-4 border-t border-edge pt-4 text-xs text-mute">
               Enter an address below to request a grant.
             </p>
+          )}
+
+          {rows && rows.some((r) => r.access === "human") && (
+            <div className="mt-4 border-t border-edge pt-4">
+              <h3 className="text-xs font-medium text-mute">Help fill it</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-mute">
+                Two faucets sit behind a sign-in and a human check, so no schedule can reach them.
+                You can. Each button copies the treasury address and opens the faucet — paste it as
+                the recipient and whatever you are granted lands in the shared pool.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {rows
+                  .filter((r) => r.access === "human")
+                  .map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => helpFill(r.id, r.claimUrl, treasury.address)}
+                      className="rounded border border-edge px-3 py-1.5 text-xs transition-colors hover:border-aqua hover:text-aqua"
+                    >
+                      {copied === r.id ? "address copied ✓" : `${r.label} · up to ${r.expectedSol} SOL`}
+                    </button>
+                  ))}
+              </div>
+              <p className="mt-2.5 text-xs leading-relaxed text-mute">
+                Both of these count against the <em>receiving</em> address, not against you. So the
+                first person through each window fills the account and everyone after is refused —
+                more volunteers does not mean more SOL, and clicking twice does not help. Come back
+                tomorrow instead. It is worth saying plainly, because the alternative is sending
+                people to spend their own daily allowance on a request that was never going to land.
+              </p>
+            </div>
           )}
         </section>
       )}
