@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { probeable, isEligible, nextEligibleAt } from "@/lib/faucets";
+import { probeable, isProbeDue, nextProbeAt } from "@/lib/faucets";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
-import { migrate, lastProbeAt, recordProbe, isConfigured, type Outcome } from "@/lib/store";
+import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -55,19 +55,24 @@ async function attempt(
 /**
  * The scheduled collection.
  *
- * Every eight hours and three minutes, this asks the devnet airdrop once - twice
- * if the first answer was not a refusal on the merits - and sends whatever it
- * gets to the treasury address. That address is a public key. Crediting an
- * account needs no signature, so this deployment can fill the treasury while
- * holding no key, signing nothing, and being unable to move a lamport of what
- * it collects.
+ * This asks the devnet airdrop once - twice if the first answer was not a
+ * refusal on the merits - and sends whatever it gets to the treasury address.
+ * That address is a public key. Crediting an account needs no signature, so
+ * this deployment can fill the treasury while holding no key, signing nothing,
+ * and being unable to move a lamport of what it collects.
+ *
+ * How long it then waits depends on the answer. A grant costs the upstream real
+ * SOL and buys it the full eight hours and three minutes it asks for. A refusal
+ * cost it nothing and buys it an hour, because the pool it is guarding refills
+ * and empties on a scale of minutes and sleeping through that is the difference
+ * between collecting something and collecting nothing.
  *
  * The yield is honest rather than impressive, and the reason is measured. The
  * upstream meters on egress IP, and this runs on shared serverless egress that
  * thousands of people have already spent. Most ticks will be refused. What
  * makes the schedule worth running anyway is that devnet's airdrop is not dead,
- * only exhausted - it recovers, and a patient request placed every eight hours
- * is present when it does. Nobody has to sit and watch for the moment.
+ * only exhausted - it recovers, and a request placed every hour through the dry
+ * spell is present when it does. Nobody has to sit and watch for the moment.
  *
  * Every attempt is written down whether it paid or not, which is what turns a
  * collector into a health board: the refusals are the signal other developers
@@ -106,9 +111,9 @@ async function tick(req: Request) {
   const skipped: Array<{ faucetId: string; readyAt: number }> = [];
 
   for (const f of probeable()) {
-    const last = await lastProbeAt(f.id);
-    if (!isEligible(f, last, now)) {
-      skipped.push({ faucetId: f.id, readyAt: nextEligibleAt(f, last) });
+    const last = await lastProbe(f.id);
+    if (!isProbeDue(f, last, now)) {
+      skipped.push({ faucetId: f.id, readyAt: nextProbeAt(f, last) });
       continue;
     }
 

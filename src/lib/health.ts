@@ -3,10 +3,12 @@ import type { Event, Outcome } from "./store";
 /**
  * Turning a pile of outcomes into one word a tired developer can act on.
  *
- * The honest constraint here is cadence. The scheduled probe runs every nine
- * hours, because that is the tightest interval the upstream's own eight-hour
- * limit permits with margin left over. A board fed that slowly cannot answer
- * "is it paying this second" — pretending otherwise would be inventing data.
+ * The honest constraint here is cadence. The scheduled probe waits eight hours
+ * and three minutes after a grant, because that is the upstream's published
+ * limit plus margin, and an hour after a refusal, because a refusal dispensed
+ * nothing and started no cooldown. So the board is well informed during a dry
+ * spell and deliberately quiet after a payout — which is the opposite of what a
+ * live ticker would do, and the right way round for a limit we did not set.
  *
  * So it answers a question it can actually support: what happened the last time
  * anyone looked, and how long ago was that. The freshest observation sets the
@@ -21,9 +23,9 @@ import type { Event, Outcome } from "./store";
  */
 
 /**
- * How far back an observation still counts. Wide enough that the nine-hour
- * probe always leaves at least two inside it, so a single odd result never
- * stands alone as the whole picture.
+ * How far back an observation still counts. Wide enough that even the slowest
+ * cadence — the eight-hour wait after a grant — always leaves at least two
+ * inside it, so a single odd result never stands alone as the whole picture.
  */
 export const HEALTH_WINDOW_MS = 24 * 60 * 60 * 1000;
 

@@ -1,3 +1,5 @@
+import type { Outcome } from "./store";
+
 /**
  * Registry of upstream devnet faucets.
  *
@@ -16,14 +18,38 @@
  */
 
 /**
- * How often the scheduled job may ask.
+ * How long to wait after the faucet actually paid.
  *
  * Eight hours is the upstream's own published limit and three minutes is the
  * margin, so this is the tightest cadence that stays inside the rules with
  * clock drift accounted for. It is also the number the health signal is
  * calibrated against — widen it and the window in `health.ts` has to widen too.
+ *
+ * This applies to a grant and nothing else. See `RETRY_INTERVAL_MS`.
  */
 export const PROBE_INTERVAL_MS = 8 * 60 * 60 * 1000 + 3 * 60 * 1000;
+
+/**
+ * How long to wait after the faucet refused.
+ *
+ * A refusal and a grant are not the same event, and treating them the same was
+ * a real mistake. The eight-hour limit is what you owe the upstream once it has
+ * paid you; being told "the faucet has run dry" costs it nothing and starts no
+ * cooldown, because nothing was dispensed. Sleeping eight hours on that answer
+ * means devnet can refill and drain again entirely between two of our asks.
+ *
+ * Devnet's airdrop is a contested pool that refills and is emptied in minutes,
+ * so the interval here is really a bet on how long a recovery stays visible. An
+ * hour is the shortest wait that is still unmistakably polite: it is twenty-odd
+ * requests a day against an RPC that tolerates a hundred a second, it is the
+ * cadence the scheduler already runs at, and it cuts the worst case for
+ * noticing a recovery from eight hours to one.
+ *
+ * It does not go below an hour. Past that the gain is small, the courtesy is
+ * gone, and the risk of being read as abuse by a rate limiter we do not control
+ * is not worth a few minutes.
+ */
+export const RETRY_INTERVAL_MS = 60 * 60 * 1000;
 
 /** Extra delay added to every cooldown so we are never early. */
 export const COOLDOWN_MARGIN_MS = 3 * 60 * 1000;
@@ -108,6 +134,37 @@ export function nextEligibleAt(f: Faucet, lastAtMs: number | null): number {
 
 export function isEligible(f: Faucet, lastAtMs: number | null, now = Date.now()): boolean {
   return now >= nextEligibleAt(f, lastAtMs);
+}
+
+/** The last thing a probe saw, which decides how soon the next one may run. */
+export type LastProbe = { at: number; outcome: Outcome };
+
+/**
+ * How long the probe waits, given what it was told last time.
+ *
+ * A grant buys the upstream its full published cooldown. Anything else — dry,
+ * rate limited, or an outright error — bought it nothing, so the only wait owed
+ * is the one we impose on ourselves out of courtesy.
+ */
+export function probeIntervalFor(f: Faucet, outcome: Outcome | null): number {
+  return outcome === "granted" ? f.cooldownMs + COOLDOWN_MARGIN_MS : RETRY_INTERVAL_MS;
+}
+
+/**
+ * Earliest permissible next probe.
+ *
+ * Distinct from `nextEligibleAt`, which is a person's clock against a faucet
+ * they claimed from by hand and has no outcome attached to it. This one is the
+ * scheduler's, and it is allowed to be impatient after a refusal precisely
+ * because a refusal consumed no quota.
+ */
+export function nextProbeAt(f: Faucet, last: LastProbe | null): number {
+  if (last === null) return 0;
+  return last.at + probeIntervalFor(f, last.outcome);
+}
+
+export function isProbeDue(f: Faucet, last: LastProbe | null, now = Date.now()): boolean {
+  return now >= nextProbeAt(f, last);
 }
 
 /** Faucets the scheduled probe may call at all. */

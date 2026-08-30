@@ -28,7 +28,7 @@ The addresses were new, so the meter is not on the recipient — it is on the **
 1. **Rotating wallets cannot work.** Not "should not" — cannot. The upstream is not counting wallets. Anyone selling you a multi-wallet devnet farmer is selling a loop that returns 429 in ten different fonts.
 2. **A hosted service cannot fill a pool on demand.** Vercel and GitHub Actions run on shared egress that thousands of others have already spent, so most requests from there are refused before they are considered.
 
-What that rules out is a dispenser: something you ask for SOL and it pays you now. What it does not rule out is patience. Devnet's airdrop is exhausted, not dead — it recovers, and a request placed every eight hours is present when it does, without anyone sitting and watching for the moment. The yield is honest rather than impressive, and it costs nothing to collect.
+What that rules out is a dispenser: something you ask for SOL and it pays you now. What it does not rule out is patience. Devnet's airdrop is exhausted, not dead — it recovers, and a request placed every hour through the dry spell is present when it does, without anyone sitting and watching for the moment. The yield is honest rather than impressive, and it costs nothing to collect.
 
 So Spigot does two things with one request. It sends whatever it collects to the treasury, and it writes down what the faucet answered either way. The second is the part that scales: thousands of developers discover a dry faucet every day and that knowledge dies in each of their terminals separately. The refusals are the product.
 
@@ -74,7 +74,16 @@ What must never happen — and does not happen here — is reusing a wallet that
 
 ## The nine-hour cadence, and why the board admits it
 
-The probe asks each server-reachable faucet once every nine hours: the tightest interval the upstream's own eight-hour limit permits with the three-minute margin on top. One address, one host, no rotation.
+The probe's wait depends on what it was last told, because a grant and a refusal are not the same event:
+
+| Last answer | Next ask | Why |
+| --- | --- | --- |
+| `granted` | 8h 3m | The upstream's published limit, plus margin for clock drift. It paid real SOL; it is owed the full wait. |
+| `dry` / `rate_limited` / `failed` | 1h | Nothing was dispensed, so no cooldown started. Waiting eight hours on a refusal means devnet can refill and drain again entirely between two of our asks. |
+
+An hour is a floor, not a target. It is roughly twenty requests a day against an RPC that tolerates a hundred a second, it matches the cadence the scheduler already runs at, and it cuts the worst case for noticing a recovery from eight hours to one. Going below it buys minutes and spends the courtesy the whole design rests on.
+
+One address, one host, no rotation.
 
 A board fed that slowly cannot answer "is it paying this second", so it does not pretend to. It answers what it can support — what happened the last time anyone looked, and how long ago that was — and prints the age beside the verdict so the reader can discount it. Anything older than ten hours is reported as `unknown` rather than as fact.
 
@@ -90,10 +99,10 @@ To its credit the board *said so* — it printed `unknown` and reported its own 
 
 Two changes follow from that:
 
-- **A floor that does not skip.** `vercel.json` runs the probe daily. GitHub stays as the opportunistic half that tightens the cadence toward nine hours whenever it does fire. Both call the same endpoint, the endpoint holds the clock, and whichever arrives early is told "not yet" — so running both costs nothing and cannot breach a cooldown.
+- **A floor that does not skip.** `vercel.json` runs the probe daily. GitHub stays as the opportunistic half that tightens the cadence toward hourly whenever it does fire. Both call the same endpoint, the endpoint holds the clock, and whichever arrives early is told "not yet" — so running both costs nothing and cannot breach a cooldown.
 - **A signal for the plumbing itself.** `/api/status` now returns a `scheduler` block: when the last probe landed, when the next is due, how late it is, and whether the gap has passed the daily floor. Past that point the fault is the deployment, not the faucet.
 
-The nine-hour interval is still enforced in `src/lib/faucets.ts`, never in a cron. A cron pinned to nine hours drifts under a late scheduler and eventually fires early — into a cooldown.
+Both intervals are enforced in `src/lib/faucets.ts`, never in a cron. A cron pinned to the exact interval drifts under a late scheduler and eventually fires early — into a cooldown. The schedulers are allowed to be dumb and frequent; the clock decides.
 
 ## What it will not do
 

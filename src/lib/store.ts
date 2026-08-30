@@ -82,6 +82,24 @@ export async function lastProbeAt(faucetId: string): Promise<number | null> {
   return rows.length ? new Date(rows[0].at).getTime() : null;
 }
 
+/**
+ * The last probe with its verdict, which is what the probe clock needs.
+ *
+ * `lastProbeAt` answers "when did we last look", and that is the right question
+ * for the scheduler-health signal. It is the wrong question for the cooldown,
+ * because how long to wait depends entirely on what the answer was.
+ */
+export async function lastProbe(
+  faucetId: string,
+): Promise<{ at: number; outcome: Outcome } | null> {
+  const sql = db();
+  const rows = (await sql`
+    SELECT at, outcome FROM probes WHERE faucet_id = ${faucetId} ORDER BY at DESC LIMIT 1
+  `) as Array<{ at: string; outcome: string }>;
+  if (!rows.length) return null;
+  return { at: new Date(rows[0].at).getTime(), outcome: rows[0].outcome as Outcome };
+}
+
 export async function recordProbe(
   faucetId: string,
   outcome: Outcome,

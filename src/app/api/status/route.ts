@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { FAUCETS, nextEligibleAt, PROBE_INTERVAL_MS } from "@/lib/faucets";
+import {
+  FAUCETS,
+  byId,
+  nextEligibleAt,
+  probeIntervalFor,
+  PROBE_INTERVAL_MS,
+  RETRY_INTERVAL_MS,
+} from "@/lib/faucets";
 import {
   healthFor,
   describe,
@@ -10,13 +17,14 @@ import {
 import {
   eventsSince,
   lastReportFor,
-  lastProbeAt,
+  lastProbe,
   isConfigured,
   migrate,
   dispenseTotals,
 } from "@/lib/store";
 import { Connection } from "@solana/web3.js";
 import { treasuryState, TIERS } from "@/lib/treasury";
+import type { Outcome } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +45,7 @@ export async function GET(req: Request) {
     windowMs: HEALTH_WINDOW_MS,
     staleAfterMs: STALE_AFTER_MS,
     probeIntervalMs: PROBE_INTERVAL_MS,
+    retryIntervalMs: RETRY_INTERVAL_MS,
   };
 
   // Without the database there is no observation log, so every verdict would be
@@ -72,9 +81,12 @@ export async function GET(req: Request) {
   const events = await eventsSince(now - HEALTH_WINDOW_MS);
   const mine = address ? await lastReportFor(address) : {};
   const probes = await Promise.all(
-    FAUCETS.map(async (f) => [f.id, await lastProbeAt(f.id)] as const),
+    FAUCETS.map(async (f) => [f.id, await lastProbe(f.id)] as const),
   );
-  const probedAt = Object.fromEntries(probes);
+  const lastByFaucet = Object.fromEntries(probes);
+  const probedAt = Object.fromEntries(
+    probes.map(([id, last]) => [id, last === null ? null : last.at] as const),
+  );
 
   const faucets = FAUCETS.map((f) => {
     const health = healthFor(f.id, events, now);
@@ -100,15 +112,23 @@ export async function GET(req: Request) {
   // The freshest probe across every server-reachable faucet. If this is far
   // enough behind, the fault is the scheduler rather than the faucets, and the
   // board should be able to say which.
-  const freshestProbe = Object.values(probedAt).reduce<number | null>(
-    (a, b) => (b === null ? a : a === null ? b : Math.max(a, b)),
-    null,
-  );
+  const freshest = probes
+    .filter((p): p is readonly [string, { at: number; outcome: Outcome }] => p[1] !== null)
+    .sort((a, b) => b[1].at - a[1].at)[0];
+  const freshestProbe = freshest ? freshest[1].at : null;
+
+  // The gap the scheduler is judged against is the one that actually applies,
+  // which depends on what the last probe was told. Reporting a due time eight
+  // hours out while the probe is really retrying hourly would make a stalled
+  // scheduler look patient.
+  const dueInterval = freshest
+    ? probeIntervalFor(byId(freshest[0]) ?? FAUCETS[0], freshest[1].outcome)
+    : PROBE_INTERVAL_MS;
 
   return NextResponse.json({
     ...shell,
     configured: true,
-    scheduler: schedulerHealth(freshestProbe, PROBE_INTERVAL_MS, now),
+    scheduler: schedulerHealth(freshestProbe, dueInterval, now),
     tiers: TIERS,
     treasury: await treasuryState(
       new Connection(process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com", "confirmed"),
