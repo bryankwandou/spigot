@@ -102,3 +102,44 @@ test("every faucet is internally coherent", () => {
 test("byId refuses to invent a faucet", () => {
   assert.equal(byId("no-such-faucet"), undefined);
 });
+
+/**
+ * A link a person can claim from, and a link that only documents a call.
+ *
+ * `claimUrl` carries both, and the board rendered both behind the same button
+ * reading "Open faucet". For the two server rows that button led to the
+ * requestAirdrop API reference and the Helius dashboard — a specification and a
+ * signup page, neither of which hands anybody SOL. People clicked it, found no
+ * claim form, and asked why the faucet was broken. It was not; the button was
+ * pointing at the endpoint Spigot posts to on their behalf.
+ *
+ * The distinction is `access`, so hold the data to it: a row a person is invited
+ * to open must point at somewhere they can actually claim.
+ */
+test("only the faucets a person can use point at a place to claim", () => {
+  const CLAIMABLE = ["faucet.solana.com", "faucet.quicknode.com"];
+
+  for (const f of FAUCETS) {
+    const host = new URL(f.claimUrl).host;
+    if (f.access === "human") {
+      assert.ok(
+        CLAIMABLE.includes(host),
+        `${f.id} invites a person to open it, so ${host} must be somewhere they can claim`,
+      );
+    } else {
+      assert.ok(
+        !CLAIMABLE.includes(host),
+        `${f.id} is called by the server; ${host} is a claim page and would read as one`,
+      );
+    }
+  }
+});
+
+test("every faucet link is somewhere a browser can go", () => {
+  for (const f of FAUCETS) {
+    for (const [field, url] of [["claimUrl", f.claimUrl], ["terms", f.terms]] as const) {
+      assert.doesNotThrow(() => new URL(url), `${f.id}.${field} is not a URL`);
+      assert.equal(new URL(url).protocol, "https:", `${f.id}.${field} must be https`);
+    }
+  }
+});

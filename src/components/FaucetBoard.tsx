@@ -467,37 +467,64 @@ export function FaucetBoard() {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-edge pt-4">
-                <a
-                  href={f.claimUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                    ready || !tracked
-                      ? "bg-paper text-ink hover:opacity-90"
-                      : "border border-edge text-mist hover:text-paper"
-                  }`}
-                >
-                  {tracked && !ready ? "Open anyway" : "Open faucet"}
-                </a>
+              {/* A faucet you can open and a faucet that is called for you are
+                  different things, and only one of them has a page. The two
+                  server rows carry an API reference in claimUrl — the endpoint
+                  Spigot posts to — because there is nothing else to point at.
+                  Rendering that behind a button reading "Open faucet" sent
+                  people to the requestAirdrop documentation and left them
+                  looking for a claim form that does not exist. So the button
+                  belongs to the rows a person can actually use. */}
+              <div className="mt-4 border-t border-edge pt-4">
+                {f.access === "human" ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={f.claimUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+                        ready || !tracked
+                          ? "bg-paper text-ink hover:opacity-90"
+                          : "border border-edge text-mist hover:text-paper"
+                      }`}
+                    >
+                      {tracked && !ready ? "Open anyway" : "Open faucet"}
+                    </a>
 
-                {tracked && (
-                  <>
-                    <button
-                      onClick={() => report(f.id, "granted")}
-                      disabled={busy !== null}
-                      className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
+                    {tracked && (
+                      <>
+                        <button
+                          onClick={() => report(f.id, "granted")}
+                          disabled={busy !== null}
+                          className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
+                        >
+                          {busy === f.id + "granted" ? "Saving" : "It paid"}
+                        </button>
+                        <button
+                          onClick={() => report(f.id, "dry")}
+                          disabled={busy !== null}
+                          className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
+                        >
+                          {busy === f.id + "dry" ? "Saving" : "It was dry"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <p className="text-xs leading-relaxed text-mist">
+                      Nothing to click. Spigot calls this one itself every {hours(f.cooldownMs)} and
+                      whatever it is given lands in the shared account above.
+                    </p>
+                    <a
+                      href={f.claimUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-xs text-mist underline decoration-edge underline-offset-4 transition-colors hover:text-paper"
                     >
-                      {busy === f.id + "granted" ? "Saving" : "It paid"}
-                    </button>
-                    <button
-                      onClick={() => report(f.id, "dry")}
-                      disabled={busy !== null}
-                      className="rounded-lg border border-edge px-3.5 py-2 text-sm text-mist transition-colors hover:text-paper disabled:opacity-40"
-                    >
-                      {busy === f.id + "dry" ? "Saving" : "It was dry"}
-                    </button>
-                  </>
+                      See the endpoint it calls
+                    </a>
+                  </div>
                 )}
               </div>
 
