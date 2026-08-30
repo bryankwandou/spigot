@@ -76,6 +76,23 @@ export type Faucet = {
   terms: string;
   /** One line on the catch, shown in the UI. */
   note: string;
+  /**
+   * RPC endpoint to call, when it is not the default devnet one.
+   *
+   * `KEY` is substituted from `keyEnv`. Several providers run their own devnet
+   * airdrop with a quota attached to the key rather than to the caller's
+   * address, which is the honest way to widen supply: each provider is used
+   * once per its own published window, as itself, with nothing disguised.
+   */
+  rpcTemplate?: string;
+  /**
+   * Environment variable holding this provider's free-tier key.
+   *
+   * Absent from the environment means the faucet is simply not probed. A
+   * missing key is a configuration gap, never a reason to fall back to the
+   * shared endpoint and spend somebody else's quota.
+   */
+  keyEnv?: string;
 };
 
 export const FAUCETS: Faucet[] = [
@@ -90,6 +107,23 @@ export const FAUCETS: Faucet[] = [
     claimUrl: "https://solana.com/docs/rpc/http/requestairdrop",
     terms: "https://solana.com/docs/rpc/http/requestairdrop",
     note: "Counts against your IP, not your wallet. Runs dry for hours at a time.",
+  },
+  {
+    id: "helius-devnet",
+    label: "Helius devnet airdrop",
+    chain: "solana-devnet",
+    access: "server",
+    meters: "account",
+    // Conservative: the free tier publishes a small daily allowance per key and
+    // the exact figure moves, so this waits a full day rather than guessing
+    // tight and being refused for asking early.
+    cooldownMs: 24 * 60 * 60 * 1000,
+    expectedSol: 1,
+    claimUrl: "https://dashboard.helius.dev",
+    terms: "https://docs.helius.dev/rpc",
+    note: "Own quota, tied to a free API key rather than to your IP. Needs HELIUS_API_KEY set.",
+    rpcTemplate: "https://devnet.helius-rpc.com/?api-key=KEY",
+    keyEnv: "HELIUS_API_KEY",
   },
   {
     id: "solana-official-web",
@@ -170,6 +204,26 @@ export function isProbeDue(f: Faucet, last: LastProbe | null, now = Date.now()):
 /** Faucets the scheduled probe may call at all. */
 export function probeable(): Faucet[] {
   return FAUCETS.filter((f) => f.access === "server");
+}
+
+/**
+ * The endpoint to call for a faucet, or null when its key is not configured.
+ *
+ * Null is a real answer and the caller must respect it. Quietly falling back to
+ * the shared devnet RPC would make one provider's outage look like another's,
+ * and would spend the common endpoint's quota under a second faucet's name.
+ */
+export function endpointFor(f: Faucet, env: Record<string, string | undefined>): string | null {
+  if (!f.rpcTemplate) return env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+  if (!f.keyEnv) return null;
+  const key = env[f.keyEnv];
+  if (!key) return null;
+  return f.rpcTemplate.replace("KEY", encodeURIComponent(key));
+}
+
+/** Whether this faucet is reachable at all with the current configuration. */
+export function isProbeConfigured(f: Faucet, env: Record<string, string | undefined>): boolean {
+  return endpointFor(f, env) !== null;
 }
 
 export function byId(id: string): Faucet | undefined {

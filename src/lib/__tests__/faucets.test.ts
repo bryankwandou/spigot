@@ -72,9 +72,15 @@ test("only server-reachable faucets are probed", () => {
   // The other two sit behind a human check. Probing them would either fail
   // permanently or require defeating that check, and the second is not
   // something this project does.
-  const ids = probeable().map((f) => f.id);
-  assert.deepEqual(ids, ["solana-rpc-airdrop"]);
-  for (const f of probeable()) assert.equal(f.access, "server");
+  // Asserted as a property rather than a fixed list: adding a provider that
+  // publishes its own quota is expected and good, and a test that has to be
+  // edited to allow it teaches people to edit tests.
+  const probes = probeable();
+  assert.ok(probes.length > 0, "something has to be reachable or the board never fills");
+  for (const f of probes) assert.equal(f.access, "server");
+  for (const f of FAUCETS.filter((x) => x.access === "human")) {
+    assert.ok(!probes.includes(f), `${f.id} is behind a human check and must not be probed`);
+  }
 });
 
 test("every faucet is internally coherent", () => {

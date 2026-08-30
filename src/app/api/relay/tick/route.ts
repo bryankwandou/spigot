@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { probeable, isProbeDue, nextProbeAt } from "@/lib/faucets";
+import { probeable, isProbeDue, nextProbeAt, endpointFor } from "@/lib/faucets";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 
@@ -106,16 +106,28 @@ async function tick(req: Request) {
   await migrate();
 
   const now = Date.now();
-  const conn = new Connection(RPC, "confirmed");
   const probed: Array<{ faucetId: string; outcome: Outcome; detail: string | null }> = [];
   const skipped: Array<{ faucetId: string; readyAt: number }> = [];
+  const unconfigured: string[] = [];
 
   for (const f of probeable()) {
+    // Each provider is called at its own endpoint, on its own key, inside its
+    // own published window. That is what makes several sources honest rather
+    // than one source wearing several hats: nothing here pretends to be a
+    // different caller than it is.
+    const endpoint = endpointFor(f, process.env);
+    if (endpoint === null) {
+      unconfigured.push(f.id);
+      continue;
+    }
+
     const last = await lastProbe(f.id);
     if (!isProbeDue(f, last, now)) {
       skipped.push({ faucetId: f.id, readyAt: nextProbeAt(f, last) });
       continue;
     }
+
+    const conn = new Connection(endpoint, "confirmed");
 
     // Two attempts, as agreed, and no more. The second exists because a
     // transient RPC error is not the same as a refusal and should not cost the
@@ -134,9 +146,11 @@ async function tick(req: Request) {
 
   // Read the account after the attempts rather than trusting them. A confirmed
   // signature and an unchanged balance is exactly the discrepancy worth seeing.
-  const treasury = await treasuryState(conn);
+  // Read it from the shared endpoint, which is the one whose view of the chain
+  // the board and the dispenser both use.
+  const treasury = await treasuryState(new Connection(RPC, "confirmed"));
 
-  return NextResponse.json({ checkedAt: now, treasury, probed, skipped });
+  return NextResponse.json({ checkedAt: now, treasury, probed, skipped, unconfigured });
 }
 
 export const POST = tick;
