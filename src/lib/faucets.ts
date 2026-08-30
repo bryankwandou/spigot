@@ -176,12 +176,20 @@ export type LastProbe = { at: number; outcome: Outcome };
 /**
  * How long the probe waits, given what it was told last time.
  *
- * A grant buys the upstream its full published cooldown. Anything else — dry,
- * rate limited, or an outright error — bought it nothing, so the only wait owed
- * is the one we impose on ourselves out of courtesy.
+ * Two answers buy the upstream its full published cooldown, for opposite
+ * reasons. A grant, because it paid and is owed the wait. And an explicit quota
+ * refusal — "1 SOL per project per day" — because that names a limit that is
+ * genuinely ours and genuinely spent; retrying it hourly is two dozen useless
+ * requests against an allowance of one, which is the behaviour this project
+ * exists to not do.
+ *
+ * Everything else bought the upstream nothing. A pool that ran dry took no
+ * quota and started no clock, and it can refill at any moment, so the only wait
+ * owed there is the one we impose on ourselves out of courtesy.
  */
 export function probeIntervalFor(f: Faucet, outcome: Outcome | null): number {
-  return outcome === "granted" ? f.cooldownMs + COOLDOWN_MARGIN_MS : RETRY_INTERVAL_MS;
+  const spent = outcome === "granted" || outcome === "rate_limited";
+  return spent ? f.cooldownMs + COOLDOWN_MARGIN_MS : RETRY_INTERVAL_MS;
 }
 
 /**

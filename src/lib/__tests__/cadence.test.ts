@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  FAUCETS,
   byId,
   nextProbeAt,
   isProbeDue,
@@ -27,13 +28,31 @@ test("a grant buys the upstream its full published cooldown", () => {
   assert.equal(probeIntervalFor(rpc, "granted"), PROBE_INTERVAL_MS);
 });
 
-test("a refusal buys it an hour, because it dispensed nothing", () => {
-  for (const outcome of ["dry", "rate_limited", "failed"] as const) {
+test("a dry pool buys it an hour, because it dispensed nothing", () => {
+  for (const outcome of ["dry", "failed"] as const) {
     assert.equal(
       nextProbeAt(rpc, { at: NOW, outcome }),
       NOW + RETRY_INTERVAL_MS,
       `${outcome} should retry on the short clock`,
     );
+  }
+});
+
+test("a quota that is explicitly ours is waited out in full", () => {
+  // "1 SOL per project per day" names a limit we really did spend. Retrying it
+  // hourly would be two dozen useless asks against an allowance of one -- the
+  // exact impoliteness the short clock must never be allowed to leak into.
+  assert.equal(
+    nextProbeAt(rpc, { at: NOW, outcome: "rate_limited" }),
+    NOW + rpc.cooldownMs + COOLDOWN_MARGIN_MS,
+  );
+});
+
+test("a provider is only ever asked for what it publishes", () => {
+  // Asking two SOL of a faucet that allows one is refused outright, not
+  // trimmed, so the greedy ask makes a working source look permanently broken.
+  for (const f of FAUCETS) {
+    assert.ok(f.expectedSol > 0, `${f.id} must declare what it grants`);
   }
 });
 

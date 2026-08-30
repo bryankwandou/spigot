@@ -32,23 +32,50 @@ function firstLine(msg: string): string {
 }
 
 /**
+ * What a refusal actually was.
+ *
+ * The difference decides how long to wait, so guessing it wrongly is expensive
+ * in both directions. A quota that is explicitly ours — "1 SOL per project per
+ * day" — is a real cooldown and deserves the full published wait; hammering it
+ * hourly is two dozen pointless requests against an allowance of one.
+ *
+ * A pool that has run dry is the opposite: it took nothing from us and started
+ * no clock, and it can refill at any moment.
+ *
+ * Where the upstream is genuinely ambiguous this errs toward "dry" and the
+ * shorter wait. The shared devnet RPC answers "you've either reached your
+ * airdrop limit today or the airdrop faucet has run dry", which is two
+ * different answers in one sentence, and it has been observed refusing from
+ * unrelated egress addresses at the same moment — so the pool is the better
+ * reading of it.
+ */
+function classify(msg: string): Outcome {
+  if (/per project|per key|per day|quota/i.test(msg)) return "rate_limited";
+  if (/run dry|airdrop limit|429|Too Many Requests|rate limit/i.test(msg)) return "dry";
+  return "failed";
+}
+
+/**
  * One attempt at the airdrop. Returns what the faucet said, not what we hoped.
+ *
+ * The size asked for is the faucet's own published grant. Asking for more than
+ * a provider allows is refused outright rather than trimmed, so a fixed two SOL
+ * would have meant a provider with a one SOL daily allowance could never pay us
+ * anything at all, while reporting a rate limit that was really our own bad
+ * arithmetic.
  */
 async function attempt(
   conn: Connection,
+  sol: number,
 ): Promise<{ outcome: Outcome; detail: string | null }> {
   try {
-    const sig = await conn.requestAirdrop(treasuryKey(), LAMPORTS_PER_SOL * 2);
+    const sig = await conn.requestAirdrop(treasuryKey(), Math.round(sol * LAMPORTS_PER_SOL));
     const bh = await conn.getLatestBlockhash();
     await conn.confirmTransaction({ signature: sig, ...bh }, "confirmed");
     return { outcome: "granted", detail: sig };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const dry = /run dry|airdrop limit|429|Too Many Requests/i.test(msg);
-    return {
-      outcome: dry ? "dry" : "failed",
-      detail: firstLine(msg),
-    };
+    return { outcome: classify(msg), detail: firstLine(msg) };
   }
 }
 
@@ -133,9 +160,9 @@ async function tick(req: Request) {
     // transient RPC error is not the same as a refusal and should not cost the
     // whole eight-hour window. A genuine "run dry" is an answer, not a hiccup,
     // so it is taken at its word and not retried.
-    let { outcome, detail } = await attempt(conn);
+    let { outcome, detail } = await attempt(conn, f.expectedSol);
     if (outcome === "failed") {
-      const second = await attempt(conn);
+      const second = await attempt(conn, f.expectedSol);
       outcome = second.outcome;
       detail = second.detail;
     }
