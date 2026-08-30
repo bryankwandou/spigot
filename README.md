@@ -85,6 +85,36 @@ An hour is a floor, not a target. It is roughly twenty requests a day against an
 
 One address, one host, no rotation.
 
+### More sources, not more faces
+
+One endpoint that is globally dry collects nothing, and the obvious escape — a
+fresh IP, a VM, a clean browser — is refused here. It also does not work: the
+devnet RPC was measured refusing from two entirely separate egress addresses,
+minutes apart, alongside two further endpoints. What is exhausted is the pool,
+not our share of it.
+
+The legitimate way to widen supply is to ask more providers, each as itself:
+
+| Source | Meters on | Grant | Window |
+| --- | --- | --- | --- |
+| Devnet RPC airdrop | Egress IP | 2 SOL | 8h 3m after a grant, 1h after a dry pool |
+| Helius devnet | The API key | 1 SOL | 24h — its own published daily allowance |
+
+Each is called at its own endpoint, on its own key, inside its own published
+window. Nothing pretends to be a caller it is not. A provider whose key is unset
+is simply not probed, and never falls back to the shared RPC — that would spend
+the common endpoint's quota under a second faucet's name and report one
+observation as two.
+
+Two details here were bugs until a real key was tried against them. The probe
+asked every faucet for a flat 2 SOL, and Helius refuses an oversized request
+outright rather than trimming it, so a working source would have refused us
+forever while reporting a rate limit that was really our own arithmetic. And the
+retry clock treated `Rate limit exceeded — 1 SOL per project per day` as a dry
+pool worth rechecking hourly, which is twenty-four requests against an allowance
+of one. A quota that is explicitly ours is now waited out in full; only a dry
+pool gets the short clock.
+
 A board fed that slowly cannot answer "is it paying this second", so it does not pretend to. It answers what it can support — what happened the last time anyone looked, and how long ago that was — and prints the age beside the verdict so the reader can discount it. Anything older than ten hours is reported as `unknown` rather than as fact.
 
 Reports are what tighten this. The probe guarantees a floor of one observation per window; an afternoon of people clicking through and saying what happened can push the freshest data point to minutes old, and the same code reads better the moment it does.
