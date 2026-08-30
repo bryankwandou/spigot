@@ -42,8 +42,8 @@ export default function Home() {
           {[
             {
               n: "01",
-              t: "A probe every nine hours, from one address",
-              d: "Spigot calls the devnet RPC airdrop itself on a fixed schedule, using a throwaway address it then discards. Nine hours is the tightest cadence the upstream's eight-hour limit allows once three minutes of headroom are added. One identity, one request per window, no rotation of any kind.",
+              t: "An ask every hour while it is dry, every eight once it pays",
+              d: "Spigot calls the devnet RPC airdrop itself, from one address, on a clock that depends on the answer. A grant buys the upstream its full published limit of eight hours plus three minutes of headroom. A refusal buys an hour, because being told the faucet has run dry dispenses nothing and starts no cooldown — and devnet refills and empties faster than eight hours. One identity, one request per window, no rotation of any kind.",
             },
             {
               n: "02",
@@ -53,7 +53,7 @@ export default function Home() {
             {
               n: "03",
               t: "The verdict comes with its age attached",
-              d: "A board fed every nine hours cannot tell you what is true this second, and dressing it up as live would be inventing data. Each row shows what happened on the last check and how long ago that was. Past ten hours with no observation it stops claiming anything at all.",
+              d: "A board fed on someone else's cooldown cannot tell you what is true this second, and dressing it up as live would be inventing data. Each row shows what happened on the last check and how long ago that was. Past ten hours with no observation it stops claiming anything at all.",
             },
             {
               n: "04",
@@ -86,9 +86,11 @@ export default function Home() {
             top.
           </p>
           <p>
-            It will not hand out SOL. There is no pool here and no balance to drain. Spigot points
-            you at the faucet most likely to pay and gets out of the way — the SOL comes from the
-            people who issue it, on their terms.
+            It will not invent supply. Whatever the probe collects sits in one public account and
+            goes back out in six fixed sizes, one per address per window — never more than came in.
+            When that account is empty the board says so and points you at the faucet most likely to
+            pay instead. The SOL still comes from the people who issue it, on their terms; Spigot
+            only holds the door open between their good moments and yours.
           </p>
           <p>
             It will not charge you. No token, no fee, no paid tier, nothing to connect a mainnet
