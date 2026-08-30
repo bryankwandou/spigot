@@ -43,12 +43,12 @@ export default function Home() {
             {
               n: "01",
               t: "An ask every hour while it is dry, every eight once it pays",
-              d: "Spigot calls the devnet RPC airdrop itself, from one address, on a clock that depends on the answer. A grant buys the upstream its full published limit of eight hours plus three minutes of headroom. A refusal buys an hour, because being told the faucet has run dry dispenses nothing and starts no cooldown — and devnet refills and empties faster than eight hours. One identity, one request per window, no rotation of any kind.",
+              d: "Spigot calls every faucet it can reach without a human — the devnet RPC airdrop and a keyed Helius endpoint — itself, from one address, on a clock that depends on the answer. Each is asked for what it actually grants rather than one hardcoded amount, and a quota refusal is told apart from an empty pool, because a spent quota owes the full wait and an empty pool can refill at any minute. A grant buys the upstream its full published limit of eight hours plus three minutes of headroom. A refusal buys an hour, because being told the faucet has run dry dispenses nothing and starts no cooldown — and devnet refills and empties faster than eight hours. One identity, one request per window, no rotation of any kind.",
             },
             {
               n: "02",
               t: "Reports from developers fill the gaps",
-              d: "Two of the three faucets sit behind a human check, so no automated probe can reach them honestly. What can reach them is you, after you click through. Say whether it paid, and the next person reads it instead of finding out the hard way.",
+              d: "Two of the four faucets sit behind a human check, so no automated probe can reach them honestly. What can reach them is you, after you click through. Say whether it paid, and the next person reads it instead of finding out the hard way.",
             },
             {
               n: "03",

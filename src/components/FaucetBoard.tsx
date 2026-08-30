@@ -235,57 +235,57 @@ export function FaucetBoard() {
         </p>
       )}
       {treasury && (
-        <section className="mb-6 rounded-lg border border-edge bg-white/[0.02] px-4 py-4">
+        <section className="mb-6 rounded-lg border border-edge bg-panel px-4 py-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-medium text-mute">Collected so far</h2>
+            <h2 className="text-sm font-medium text-mist">Collected so far</h2>
             <a
               href={treasury.explorerUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-xs text-mute underline decoration-edge underline-offset-4 hover:text-fg"
+              className="font-mono text-xs text-mist underline decoration-edge underline-offset-4 hover:text-paper"
             >
               {treasury.address.slice(0, 6)}…{treasury.address.slice(-6)}
             </a>
           </div>
-          <p className="mt-2 font-mono text-2xl tabular-nums text-fg">
+          <p className="mt-2 font-mono text-2xl tabular-nums text-paper">
             {treasury.sol === null ? "—" : `${treasury.sol.toFixed(4)} SOL`}
           </p>
           {capacity && (
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-3 text-xs text-mute">
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-edge pt-3 text-xs text-mist">
               <span>
-                <span className="text-mute">Ready to hand out </span>
-                <span className="font-mono tabular-nums text-fg">
+                <span className="text-mist">Ready to hand out </span>
+                <span className="font-mono tabular-nums text-paper">
                   {capacity.spendableSol.toFixed(3)} SOL
                 </span>
               </span>
               <span>
-                <span className="text-mute">Grants left </span>
-                <span className="font-mono tabular-nums text-fg">{capacity.maxGrants}</span>
-                <span className="text-mute"> at 0.1 SOL</span>
+                <span className="text-mist">Grants left </span>
+                <span className="font-mono tabular-nums text-paper">{capacity.maxGrants}</span>
+                <span className="text-mist"> at 0.1 SOL</span>
               </span>
               <span>
-                <span className="text-mute">Refills at most </span>
-                <span className="font-mono tabular-nums text-fg">
+                <span className="text-mist">Refills at most </span>
+                <span className="font-mono tabular-nums text-paper">
                   {capacity.dailyCeilingSol.toFixed(1)} SOL
                 </span>
-                <span className="text-mute">/day</span>
+                <span className="text-mist">/day</span>
               </span>
-              <span className="font-mono tabular-nums text-mute">
+              <span className="font-mono tabular-nums text-mist">
                 {capacity.reservedSol.toFixed(2)} SOL held for fees
               </span>
             </div>
           )}
           {capacity && capacity.maxGrants === 0 && capacity.daysToFillLargestTier !== null && (
-            <p className="mt-2 text-xs text-mute">
+            <p className="mt-2 text-xs text-mist">
               Empty right now. At the published rates a full 3 SOL tier is about{" "}
-              <span className="font-mono tabular-nums text-fg">
+              <span className="font-mono tabular-nums text-paper">
                 {capacity.daysToFillLargestTier.toFixed(1)}
               </span>{" "}
               days of collecting away — and that is a ceiling, not a forecast. It assumes every ask
               is granted, and most are refused.
             </p>
           )}
-          <p className="mt-2 text-xs leading-relaxed text-mute">
+          <p className="mt-2 text-xs leading-relaxed text-mist">
             {treasury.error
               ? "The balance could not be read just now. The address above is still the one being filled."
               : "Read from devnet, not from our own log. The schedule asks each reachable faucet once per its own window and sends whatever it gets here. Most asks are refused — this account fills when a faucet recovers, not on demand."}
@@ -296,7 +296,7 @@ export function FaucetBoard() {
 
           {tracked ? (
             <div className="mt-4 border-t border-edge pt-4">
-              <p className="mb-2 text-xs text-mute">
+              <p className="mb-2 text-xs text-mist">
                 One grant per address every eight hours. Pick a size.
               </p>
               <div className="flex flex-wrap gap-2">
@@ -318,7 +318,7 @@ export function FaucetBoard() {
                 })}
               </div>
               {!treasury.canDispense && !treasury.error && (
-                <p className="mt-2 text-xs text-mute">
+                <p className="mt-2 text-xs text-mist">
                   {!treasury.signerReady
                     ? "The dispenser has no signing key configured, so nothing can be sent."
                     : "Nothing to hand out yet. The account fills from the faucet, which is refusing us too."}
@@ -344,15 +344,15 @@ export function FaucetBoard() {
               )}
             </div>
           ) : (
-            <p className="mt-4 border-t border-edge pt-4 text-xs text-mute">
+            <p className="mt-4 border-t border-edge pt-4 text-xs text-mist">
               Enter an address below to request a grant.
             </p>
           )}
 
           {rows && rows.some((r) => r.access === "human") && (
             <div className="mt-4 border-t border-edge pt-4">
-              <h3 className="text-xs font-medium text-mute">Help fill it</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-mute">
+              <h3 className="text-xs font-medium text-mist">Help fill it</h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-mist">
                 Two faucets sit behind a sign-in and a human check, so no schedule can reach them.
                 You can. Each button copies the treasury address and opens the faucet — paste it as
                 the recipient and whatever you are granted lands in the shared pool.
@@ -371,7 +371,7 @@ export function FaucetBoard() {
                     </button>
                   ))}
               </div>
-              <p className="mt-2.5 text-xs leading-relaxed text-mute">
+              <p className="mt-2.5 text-xs leading-relaxed text-mist">
                 Both of these count against the <em>receiving</em> address, not against you. So the
                 first person through each window fills the account and everyone after is refused —
                 more volunteers does not mean more SOL, and clicking twice does not help. Come back

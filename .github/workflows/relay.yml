@@ -15,9 +15,16 @@ name: Faucet probe
 # scheduler that skips eight of them in a row.
 #
 # So a run does not exit after one request. It stays alive and knocks every
-# fifty-five minutes for most of a working day. GitHub caps a job at six hours,
-# which is the only reason this stops at six rounds. The repository is public,
-# so the minutes are free, and a sleeping runner costs nothing but a slot.
+# twenty minutes for most of a working day. GitHub caps a job at six hours,
+# which is the only reason this stops at seventeen rounds. The repository is
+# public, so the minutes are free, and a sleeping runner costs nothing but a
+# slot.
+#
+# Twenty minutes rather than an hour because the knock interval sets the error
+# on every deadline, not the average. A retry due at sixty minutes that is only
+# asked at fifty-five waits a further fifty-five: the observed lateness was
+# forty-one minutes on a probe that wanted to run hourly. Knocking three times
+# an hour bounds that lateness at twenty minutes for the price of sleeping.
 #
 # `cancel-in-progress: true` is deliberate. When the next scheduled run does
 # arrive it should replace the heartbeat rather than queue behind it: one live
@@ -49,8 +56,8 @@ jobs:
         env:
           RELAY_URL: ${{ secrets.RELAY_URL }}
           RELAY_TOKEN: ${{ secrets.RELAY_TOKEN }}
-          ROUNDS: "6"
-          GAP_SECONDS: "3300"
+          ROUNDS: "17"
+          GAP_SECONDS: "1200"
         run: |
           set -euo pipefail
 
@@ -90,7 +97,7 @@ jobs:
             esac
 
             # A bad round is not a reason to stop knocking. The next one is
-            # fifty-five minutes away and the faucet may have recovered by then.
+            # twenty minutes away and the faucet may have recovered by then.
             if [ "$round" -lt "$ROUNDS" ]; then
               sleep "$GAP_SECONDS"
             fi
