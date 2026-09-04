@@ -14,14 +14,25 @@
   --font-mono: var(--font-mono-stack), ui-monospace, "SFMono-Regular", monospace;
 }
 
+/* A landing page is a scroll, not a sheet of paper. Two things break that
+   illusion faster than anything else: a sideways scrollbar from one element
+   that overhangs by a few pixels, and a heading that clips its own descenders
+   because a fixed height was guessed. `overflow-x: clip` kills the first
+   without creating a scroll container the way `hidden` does, so the sticky
+   header keeps working. */
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+  /* The sticky bar would otherwise land on top of whatever an anchor jumps to. */
+  scroll-padding-top: 5.5rem;
 }
 
 body {
   background: var(--color-ink);
   color: var(--color-paper);
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Balances and signatures sit in columns that update live. Tabular figures
@@ -40,6 +51,115 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* --- Type scale -----------------------------------------------------------
+   Fluid between the smallest phone and a wide desktop so nothing has to be
+   re-measured per breakpoint, and nothing overflows its column on the way. */
+.t-hero {
+  font-size: clamp(2.5rem, 7.2vw, 5.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+}
+
+.t-h2 {
+  font-size: clamp(1.75rem, 3.6vw, 2.75rem);
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+.t-h3 {
+  font-size: clamp(1.0625rem, 1.6vw, 1.25rem);
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+.t-lead {
+  font-size: clamp(1rem, 1.35vw, 1.1875rem);
+  line-height: 1.65;
+}
+
+/* Section labels. Small, spaced, mono — the one place uppercase is allowed. */
+.t-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-mist);
+}
+
+/* --- Surfaces ------------------------------------------------------------- */
+
+.glass {
+  background: color-mix(in oklab, #080b14 72%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Panels lift by light, not by shadow: a 1px top highlight reads as a surface
+   catching the glow from the hero rather than a card floating on nothing. */
+.lift {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, #ffffff 4%, transparent) 0%, transparent 42%),
+    var(--color-panel);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, #ffffff 7%, transparent);
+}
+
+.grid-lines {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, #1c2536 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, #1c2536 70%, transparent) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 20%, transparent 78%);
+}
+
+/* A hairline that fades out at both ends, so section breaks stop feeling like
+   the ruled lines of a form. */
+.rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, #1c2536 100%, transparent) 12%,
+    color-mix(in oklab, #1c2536 100%, transparent) 88%,
+    transparent
+  );
+}
+
+/* --- Motion --------------------------------------------------------------- */
+
+@keyframes drip {
+  0% { transform: translateY(-6px); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translateY(22px); opacity: 0; }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.35); }
+}
+
+@keyframes sheen {
+  0% { background-position: -160% 0; }
+  100% { background-position: 260% 0; }
+}
+
+.pulse-dot { animation: breathe 2.4s ease-in-out infinite; }
+
+.sheen {
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in oklab, #ffffff 16%, transparent) 50%,
+    transparent 62%
+  );
+  background-size: 220% 100%;
+  animation: sheen 3.4s ease-in-out infinite;
 }
 
 /* Focus rings are visible and consistent; never removed for looks. */

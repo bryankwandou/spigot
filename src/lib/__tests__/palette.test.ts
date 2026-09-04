@@ -59,6 +59,9 @@ const BUILT_IN = new Set([
   "bottom", "solid", "dashed", "dotted", "b", "t", "l", "r", "x", "y",
   "balance", "pretty", "nowrap", "wrap", "clip", "ellipsis", "start", "end",
   "panel", "edge",
+  // `bg-gradient-to-b` names a direction, not a colour; the colour arrives
+  // separately through from-/via-/to-.
+  "gradient",
 ]);
 
 test("every colour utility names a token the theme declares", () => {

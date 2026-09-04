@@ -1,116 +1,242 @@
-import { Mark, Wordmark } from "@/components/Mark";
 import { FaucetBoard } from "@/components/FaucetBoard";
+import { Nav } from "@/components/Nav";
+import { Footer } from "@/components/Footer";
+import { Faq } from "@/components/Faq";
+import { Relay } from "@/components/Relay";
+import { HeroStats } from "@/components/HeroStats";
+import { Reveal } from "@/components/motion/Reveal";
+
+const STEPS = [
+  {
+    n: "01",
+    t: "The relay asks, on a clock",
+    d: "Spigot calls the two upstreams that answer a program — the devnet RPC airdrop and a keyed Helius endpoint — from one address, asking each for what it actually grants. A grant buys that faucet its full published wait plus three minutes. A refusal buys an hour, because being told the pool is empty dispenses nothing and starts no cooldown.",
+  },
+  {
+    n: "02",
+    t: "What lands, lands in one account",
+    d: "Every grant goes to a single public address you can open in an explorer. Nothing is minted, nothing is bought, and nothing leaves except through the dispenser below.",
+  },
+  {
+    n: "03",
+    t: "You take a size, not a tour",
+    d: "Paste an address, press a size, get a signature back. One grant per address every eight hours, out of six fixed sizes. No sign-in, no captcha, no four tabs.",
+  },
+  {
+    n: "04",
+    t: "Every verdict carries its age",
+    d: "A board fed on someone else's cooldown cannot know what is true this second, and dressing it up as live would be inventing data. Each row prints what happened on the last check and how long ago. Past ten hours with no observation it stops claiming anything.",
+  },
+];
+
+const LIMITS = [
+  {
+    t: "It will not farm faucets",
+    d: "Rotating wallets and egress addresses to slip past a limit is the obvious way to make the numbers bigger, and the reason a project like this would deserve to be shut down. It also does not work: the RPC airdrop meters the calling IP, not the receiving wallet, so extra addresses buy nothing.",
+  },
+  {
+    t: "It will not invent supply",
+    d: "Whatever the probe collects sits in one public account and goes back out in six fixed sizes — never more than came in. When it is empty the board says so and points at the faucet most likely to pay instead.",
+  },
+  {
+    t: "It will not charge you",
+    d: "No token, no fee, no paid tier, nothing to connect a mainnet wallet to. Devnet SOL is given away free by design, and putting a price on it would be selling something that was never ours.",
+  },
+  {
+    t: "It will not ask for your key",
+    d: "Nothing here wants a seed phrase, a private key, or a signature. Pasting a public address is the entire interaction, and even that is optional.",
+  },
+];
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32">
-      <header className="flex items-center justify-between py-8">
-        <Wordmark />
-        <a
-          href="https://github.com/bryankwandou/spigot"
-          className="text-sm text-mist underline decoration-edge underline-offset-4 transition-colors hover:text-paper"
-        >
-          Source
-        </a>
-      </header>
+    <>
+      <Nav />
 
-      <section className="pt-16 sm:pt-24">
-        <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-edge bg-panel px-3 py-1 text-xs text-mist">
-          <span className="h-1.5 w-1.5 rounded-full bg-aqua" />
-          Solana devnet
-        </p>
+      <main id="top">
+        {/* ---------------------------------------------------------------
+            Hero. Full bleed on purpose: the first screen is one image, not a
+            column of text sitting in the middle of a dark rectangle. The
+            canvas behind it is the mechanism — four spouts, one pool.
+            --------------------------------------------------------------- */}
+        <section className="relative isolate overflow-hidden">
+          <div aria-hidden className="grid-lines absolute inset-0 -z-10" />
+          <Relay className="absolute inset-x-0 top-0 -z-10 h-[min(78vh,760px)] w-full opacity-70" />
+          <div
+            aria-hidden
+            className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-b from-transparent to-ink"
+          />
 
-        <h1 className="max-w-2xl text-4xl font-bold leading-[1.08] tracking-[-0.03em] sm:text-6xl">
-          Find out which faucet is <span className="brand-text">actually paying</span>.
-        </h1>
+          <div className="mx-auto max-w-6xl px-5 pb-20 pt-32 sm:px-8 sm:pb-28 sm:pt-40">
+            <Reveal>
+              <p className="inline-flex items-center gap-2.5 rounded-full border border-edge bg-panel/80 px-3.5 py-1.5 text-xs text-mist">
+                <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-aqua" />
+                Solana devnet · live relay
+              </p>
+            </Reveal>
 
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-mist">
-          Devnet faucets go dry without announcing it. You open four tabs, sign in twice, clear a
-          human check, and get nothing. Spigot keeps a record of what each one did the last time
-          anybody asked, so you spend one click instead of four.
-        </p>
-      </section>
+            <Reveal delay={0.06}>
+              <h1 className="t-hero mt-7 max-w-4xl text-balance">
+                Devnet SOL, <span className="brand-text">already collected</span>.
+              </h1>
+            </Reveal>
 
-      <section className="mt-16">
-        <FaucetBoard />
-      </section>
+            <Reveal delay={0.12}>
+              <p className="t-lead mt-7 max-w-xl text-mist">
+                Faucets go dry without announcing it. Spigot asks them on their own schedule, all
+                day, and keeps what it gets in one public account. You paste an address and take a
+                size — no sign-in, no human check, no four tabs.
+              </p>
+            </Reveal>
 
-      <section className="mt-28 border-t border-edge pt-12">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">How it works</h2>
-
-        <ol className="mt-6 space-y-6">
-          {[
-            {
-              n: "01",
-              t: "An ask every hour while it is dry, every eight once it pays",
-              d: "Spigot calls every faucet it can reach without a human — the devnet RPC airdrop and a keyed Helius endpoint — itself, from one address, on a clock that depends on the answer. Each is asked for what it actually grants rather than one hardcoded amount, and a quota refusal is told apart from an empty pool, because a spent quota owes the full wait and an empty pool can refill at any minute. A grant buys the upstream its full published limit of eight hours plus three minutes of headroom. A refusal buys an hour, because being told the faucet has run dry dispenses nothing and starts no cooldown — and devnet refills and empties faster than eight hours. One identity, one request per window, no rotation of any kind.",
-            },
-            {
-              n: "02",
-              t: "Reports from developers fill the gaps",
-              d: "Two of the four faucets sit behind a human check, so no automated probe can reach them honestly. What can reach them is you, after you click through. Say whether it paid, and the next person reads it instead of finding out the hard way.",
-            },
-            {
-              n: "03",
-              t: "The verdict comes with its age attached",
-              d: "A board fed on someone else's cooldown cannot tell you what is true this second, and dressing it up as live would be inventing data. Each row shows what happened on the last check and how long ago that was. Past ten hours with no observation it stops claiming anything at all.",
-            },
-            {
-              n: "04",
-              t: "Your own clock stays yours",
-              d: "Paste an address and it stays in your browser. Tell the board a faucet paid you and it starts counting your personal cooldown — a separate question from whether that faucet is paying anyone, and one the other tabs never answer.",
-            },
-          ].map((s) => (
-            <li key={s.n} className="flex gap-5">
-              <span className="tnum shrink-0 pt-0.5 font-mono text-sm text-sky">{s.n}</span>
-              <div>
-                <h3 className="font-medium text-paper">{s.t}</h3>
-                <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-mist">{s.d}</p>
+            <Reveal delay={0.18}>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <a
+                  href="#board"
+                  className="brand-gradient rounded-full px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
+                >
+                  Get devnet SOL
+                </a>
+                <a
+                  href="#how"
+                  className="rounded-full border border-edge px-6 py-3 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
+                >
+                  How the relay works
+                </a>
               </div>
-            </li>
-          ))}
-        </ol>
-      </section>
+            </Reveal>
 
-      <section className="mt-28 border-t border-edge pt-12">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-mist">
-          What Spigot will not do
-        </h2>
-        <div className="mt-6 space-y-4 text-sm leading-relaxed text-mist">
-          <p>
-            It will not farm faucets. Rotating wallets and egress addresses to slip past a limit is
-            the obvious way to make the numbers look bigger, and it is the reason a project like
-            this would deserve to be shut down. It also does not work: the RPC airdrop was measured
-            counting against the calling IP rather than the receiving wallet, so extra addresses buy
-            nothing. One identity, one request per window, published limits honoured with margin on
-            top.
-          </p>
-          <p>
-            It will not invent supply. Whatever the probe collects sits in one public account and
-            goes back out in six fixed sizes, one per address per window — never more than came in.
-            When that account is empty the board says so and points you at the faucet most likely to
-            pay instead. The SOL still comes from the people who issue it, on their terms; Spigot
-            only holds the door open between their good moments and yours.
-          </p>
-          <p>
-            It will not charge you. No token, no fee, no paid tier, nothing to connect a mainnet
-            wallet to. Devnet SOL is given away for free by design, and putting a price on it would
-            be selling something that was never ours.
-          </p>
-          <p>
-            It will not ask for your key. Nothing here wants a seed phrase, a private key, or a
-            signature. Pasting a public address is the entire interaction, and even that is
-            optional.
-          </p>
-        </div>
-      </section>
+            <Reveal delay={0.26}>
+              <div className="mt-14 max-w-3xl">
+                <HeroStats />
+              </div>
+            </Reveal>
+          </div>
+        </section>
 
-      <footer className="mt-28 flex items-center gap-3 border-t border-edge pt-8">
-        <Mark size={20} id="footer" />
-        <p className="text-xs text-mist">
-          Spigot — devnet infrastructure. Not affiliated with Solana Labs or the Solana Foundation.
-        </p>
-      </footer>
-    </main>
+        {/* --------------------------------------------------------------- */}
+        <section id="board" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <p className="t-label">The board</p>
+            <h2 className="t-h2 mt-3 max-w-2xl">
+              Take a grant here. The faucets are the supply line, not the queue.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">
+              The dispenser pays out of what the relay has already collected. Below it, each
+              upstream reports whether it paid or refused on its last check — useful when the
+              account is dry and you need to know which door is worth knocking on.
+            </p>
+          </Reveal>
+
+          <Reveal delay={0.08} className="mt-10">
+            <FaucetBoard />
+          </Reveal>
+        </section>
+
+        {/* --------------------------------------------------------------- */}
+        <section id="how" className="relative scroll-mt-24 border-y border-edge bg-panel/30">
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+            <Reveal>
+              <p className="t-label">How it works</p>
+              <h2 className="t-h2 mt-3 max-w-2xl">Four moves, none of them yours.</h2>
+            </Reveal>
+
+            <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-edge bg-edge sm:grid-cols-2">
+              {STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.06}>
+                  <article className="lift relative h-full overflow-hidden p-7 sm:p-8">
+                    <span
+                      aria-hidden
+                      className="tnum pointer-events-none absolute -right-2 -top-6 font-mono text-[7rem] leading-none text-paper/[0.035]"
+                    >
+                      {s.n}
+                    </span>
+                    <p className="tnum font-mono text-xs text-sky">{s.n}</p>
+                    <h3 className="t-h3 mt-3 text-paper">{s.t}</h3>
+                    <p className="mt-3 max-w-md text-sm leading-relaxed text-mist">{s.d}</p>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------------- */}
+        <section id="limits" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <p className="t-label">Limits</p>
+            <h2 className="t-h2 mt-3 max-w-2xl">What Spigot will not do.</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">
+              A relay that quietly broke the rules it claims to respect would be worth less than
+              nothing. These are the four lines it does not cross, written down so they can be
+              checked against the source.
+            </p>
+          </Reveal>
+
+          <div className="mt-12 grid gap-6 sm:grid-cols-2">
+            {LIMITS.map((l, i) => (
+              <Reveal key={l.t} delay={i * 0.06}>
+                <article className="lift h-full rounded-2xl border border-edge p-7">
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden
+                      className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo"
+                    />
+                    <h3 className="t-h3 text-paper">{l.t}</h3>
+                  </div>
+                  <p className="mt-3 text-sm leading-relaxed text-mist">{l.d}</p>
+                </article>
+              </Reveal>
+            ))}
+          </div>
+        </section>
+
+        {/* --------------------------------------------------------------- */}
+        <section id="faq" className="mx-auto max-w-4xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <p className="t-label">FAQ</p>
+            <h2 className="t-h2 mt-3">Questions, answered.</h2>
+          </Reveal>
+          <Reveal delay={0.06}>
+            <Faq />
+          </Reveal>
+        </section>
+
+        {/* --------------------------------------------------------------- */}
+        <section className="relative isolate overflow-hidden border-t border-edge">
+          <div
+            aria-hidden
+            className="brand-gradient absolute inset-0 -z-10 opacity-[0.14] blur-3xl"
+          />
+          <div className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 sm:py-32">
+            <Reveal>
+              <h2 className="t-h2">Stop keeping four cooldowns in your head.</h2>
+              <p className="mt-4 text-sm leading-relaxed text-mist">
+                One address, one press, one signature back. The relay has been asking on your
+                behalf since before you opened this page.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <a
+                  href="#board"
+                  className="brand-gradient rounded-full px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
+                >
+                  Get devnet SOL
+                </a>
+                <a
+                  href="https://github.com/bryankwandou/spigot"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="rounded-full border border-edge px-6 py-3 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
+                >
+                  Read the source
+                </a>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </main>
+
+      <Footer />
+    </>
   );
 }
