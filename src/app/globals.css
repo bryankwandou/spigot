@@ -162,6 +162,32 @@ body {
   animation: sheen 3.4s ease-in-out infinite;
 }
 
+/* --- Scroll reveal --------------------------------------------------------
+   Visible by default. The hidden state exists only once script has confirmed
+   it can put it back, which is what the `js` class on the root asserts. A
+   crawler, a blocked bundle, or a reader with script off gets the whole page;
+   everyone else gets the entrance. */
+.reveal {
+  opacity: 1;
+}
+
+html.js .reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  filter: blur(6px);
+  transition:
+    opacity 0.62s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.62s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.62s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+html.js .reveal.in {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
 /* Focus rings are visible and consistent; never removed for looks. */
 :focus-visible {
   outline: 2px solid var(--color-sky);
@@ -170,6 +196,16 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* No entrance at all, and no dependence on one having finished. */
+  html.js .reveal,
+  html.js .reveal.in {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+    transition-delay: 0s !important;
+  }
+
   *,
   *::before,
   *::after {

@@ -2,8 +2,7 @@ import { FaucetBoard } from "@/components/FaucetBoard";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { Faq } from "@/components/Faq";
-import { Relay } from "@/components/Relay";
-import { HeroStats } from "@/components/HeroStats";
+import { Console } from "@/components/Console";
 import { Reveal } from "@/components/motion/Reveal";
 
 const STEPS = [
@@ -15,7 +14,7 @@ const STEPS = [
   {
     n: "02",
     t: "What lands, lands in one account",
-    d: "Every grant goes to a single public address you can open in an explorer. Nothing is minted, nothing is bought, and nothing leaves except through the dispenser below.",
+    d: "Every grant goes to a single public address you can open in an explorer. Nothing is minted, nothing is bought, and nothing leaves except through the console at the top of this page.",
   },
   {
     n: "03",
@@ -55,76 +54,21 @@ export default function Home() {
 
       <main id="top">
         {/* ---------------------------------------------------------------
-            Hero. Full bleed on purpose: the first screen is one image, not a
-            column of text sitting in the middle of a dark rectangle. The
-            canvas behind it is the mechanism — four spouts, one pool.
+            Screen one is the tool, not an argument for the tool. Everything
+            below this exists for the reader who scrolls past a finished
+            transaction.
             --------------------------------------------------------------- */}
-        <section className="relative isolate overflow-hidden">
-          <div aria-hidden className="grid-lines absolute inset-0 -z-10" />
-          <Relay className="absolute inset-x-0 top-0 -z-10 h-[min(78vh,760px)] w-full opacity-70" />
-          <div
-            aria-hidden
-            className="absolute inset-x-0 bottom-0 -z-10 h-56 bg-gradient-to-b from-transparent to-ink"
-          />
-
-          <div className="mx-auto max-w-6xl px-5 pb-20 pt-32 sm:px-8 sm:pb-28 sm:pt-40">
-            <Reveal>
-              <p className="inline-flex items-center gap-2.5 rounded-full border border-edge bg-panel/80 px-3.5 py-1.5 text-xs text-mist">
-                <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-aqua" />
-                Solana devnet · live relay
-              </p>
-            </Reveal>
-
-            <Reveal delay={0.06}>
-              <h1 className="t-hero mt-7 max-w-4xl text-balance">
-                Devnet SOL, <span className="brand-text">already collected</span>.
-              </h1>
-            </Reveal>
-
-            <Reveal delay={0.12}>
-              <p className="t-lead mt-7 max-w-xl text-mist">
-                Faucets go dry without announcing it. Spigot asks them on their own schedule, all
-                day, and keeps what it gets in one public account. You paste an address and take a
-                size — no sign-in, no human check, no four tabs.
-              </p>
-            </Reveal>
-
-            <Reveal delay={0.18}>
-              <div className="mt-9 flex flex-wrap items-center gap-3">
-                <a
-                  href="#board"
-                  className="brand-gradient rounded-full px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
-                >
-                  Get devnet SOL
-                </a>
-                <a
-                  href="#how"
-                  className="rounded-full border border-edge px-6 py-3 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
-                >
-                  How the relay works
-                </a>
-              </div>
-            </Reveal>
-
-            <Reveal delay={0.26}>
-              <div className="mt-14 max-w-3xl">
-                <HeroStats />
-              </div>
-            </Reveal>
-          </div>
-        </section>
+        <Console />
 
         {/* --------------------------------------------------------------- */}
         <section id="board" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
             <p className="t-label">The board</p>
-            <h2 className="t-h2 mt-3 max-w-2xl">
-              Take a grant here. The faucets are the supply line, not the queue.
-            </h2>
+            <h2 className="t-h2 mt-3 max-w-2xl">Where the SOL upstairs came from.</h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">
-              The dispenser pays out of what the relay has already collected. Below it, each
-              upstream reports whether it paid or refused on its last check — useful when the
-              account is dry and you need to know which door is worth knocking on.
+              Four upstream faucets, and what each did on its last check. You do not need any of
+              this to take a grant — it is here for the day the account runs dry and you need to
+              know which door is still worth knocking on.
             </p>
           </Reveal>
 
@@ -217,7 +161,7 @@ export default function Home() {
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <a
-                  href="#board"
+                  href="#top"
                   className="brand-gradient rounded-full px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
                 >
                   Get devnet SOL

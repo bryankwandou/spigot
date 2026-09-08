@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 const QA = [
   {
     q: "Do I have to visit a faucet at all?",
-    a: "Not for the ordinary case. Paste an address into the board and press a size — the dispenser signs a transfer out of the shared account and you get a signature back. The faucet-opening buttons further down exist for one job only: the two upstreams behind a sign-in cannot be called by a schedule, so when the account runs low a person can top it up by hand. That is a volunteer path, not the way you get funded.",
+    a: "Not for the ordinary case. Paste an address into the console at the top of this page, pick a size, confirm — the dispenser signs a transfer out of the shared account and hands you back a transaction. The faucet-opening buttons further down exist for one job only: the two upstreams behind a sign-in cannot be called by a schedule, so when the account runs low a person can top it up by hand. That is a volunteer path, not the way you get funded.",
   },
   {
     q: "Where does the SOL come from?",

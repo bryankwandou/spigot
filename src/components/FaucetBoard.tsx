@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Countdown } from "./Countdown";
 
 type Status = "flowing" | "patchy" | "dry" | "unknown";
@@ -31,8 +31,6 @@ type Treasury = {
   canDispense: boolean;
   error: string | null;
 };
-
-type Grant = { sent: number; explorerUrl: string } | null;
 
 type Capacity = {
   spendableSol: number;
@@ -71,41 +69,28 @@ function hours(ms: number): string {
 /**
  * The board.
  *
+ * Diagnostics, not the way in. Getting SOL happens in the console one screen
+ * up; what happens here is the question that console cannot answer on the day
+ * the account runs dry — which upstream is worth knocking on, and how stale
+ * that verdict is.
+ *
  * Two questions get answered per row and they are different questions: is this
  * faucet paying anyone at all right now, and are *you* allowed to ask it yet.
  * A faucet can be flowing and still closed to you, which is precisely the
  * information that four browser tabs fail to give you.
  */
 export function FaucetBoard() {
-  const [address, setAddress] = useState("");
   const [tracked, setTracked] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [scheduler, setScheduler] = useState<Scheduler | null>(null);
   const [treasury, setTreasury] = useState<Treasury | null>(null);
-  const [tiers, setTiers] = useState<number[]>([]);
   const [dispensed, setDispensed] = useState<{ count: number; sol: number } | null>(null);
   const [capacity, setCapacity] = useState<Capacity | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [grant, setGrant] = useState<Grant>(null);
-  const [grantError, setGrantError] = useState<string | null>(null);
-  const [asking, setAsking] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Keyed by faucet so a rejection appears against the row it belongs to.
   const [notice, setNotice] = useState<{ faucetId: string; text: string } | null>(null);
 
-  /**
-   * Hand a volunteer the treasury address and the faucet, and get out of the way.
-   *
-   * This is the one place the community can add supply that no schedule can
-   * reach: the two web faucets sit behind a sign-in and a human check, which an
-   * automated probe cannot honestly pass. A person can, once, as themselves.
-   *
-   * What it deliberately does not do is pretend that more clicks mean more SOL.
-   * Both of these meter on the receiving address, so the first volunteer of the
-   * window fills the account and everyone after is refused. Saying otherwise
-   * would send people to spend their own daily allowance on a request that was
-   * never going to land.
-   */
   const copyAddress = useCallback(async (addr: string) => {
     try {
       await navigator.clipboard.writeText(addr);
@@ -117,6 +102,17 @@ export function FaucetBoard() {
     }
   }, []);
 
+  /**
+   * Hand a volunteer the treasury address and the faucet, and get out of the way.
+   *
+   * This is the one place the community can add supply that no schedule can
+   * reach: the two web faucets sit behind a sign-in and a human check, which an
+   * automated probe cannot honestly pass. A person can, once, as themselves.
+   *
+   * What it deliberately does not do is pretend that more clicks mean more SOL.
+   * Both of these meter on the receiving address, so the first volunteer of the
+   * window fills the account and everyone after is refused.
+   */
   const helpFill = useCallback(async (faucetId: string, claimUrl: string, addr: string) => {
     try {
       await navigator.clipboard.writeText(addr);
@@ -137,7 +133,6 @@ export function FaucetBoard() {
       setRows(j.faucets ?? []);
       setScheduler(j.scheduler ?? null);
       setTreasury(j.treasury ?? null);
-      setTiers(j.tiers ?? []);
       setDispensed(j.dispensed ?? null);
       setCapacity(j.capacity ?? null);
     } catch {
@@ -151,27 +146,19 @@ export function FaucetBoard() {
     return () => clearInterval(id);
   }, [load, tracked]);
 
+  // The address belongs to the console, not to this board. Reading it here
+  // rather than asking for it a second time is the difference between one
+  // form on the page and two that disagree.
   useEffect(() => {
-    const saved = window.localStorage.getItem("spigot.address");
-    if (saved) {
-      setAddress(saved);
-      setTracked(saved);
-    }
+    const read = () => setTracked(window.localStorage.getItem("spigot.address"));
+    read();
+    window.addEventListener("storage", read);
+    const id = setInterval(read, 4000);
+    return () => {
+      window.removeEventListener("storage", read);
+      clearInterval(id);
+    };
   }, []);
-
-  function track(e: React.FormEvent) {
-    e.preventDefault();
-    const a = address.trim();
-    if (!a) return;
-    window.localStorage.setItem("spigot.address", a);
-    setTracked(a);
-  }
-
-  function forget() {
-    window.localStorage.removeItem("spigot.address");
-    setTracked(null);
-    setAddress("");
-  }
 
   async function report(faucetId: string, outcome: "granted" | "dry") {
     if (!tracked) return;
@@ -189,10 +176,7 @@ export function FaucetBoard() {
       // walks away believing they contributed. Say what happened instead.
       if (!r.ok) {
         const body = (await r.json().catch(() => null)) as { error?: string } | null;
-        setNotice({
-          faucetId,
-          text: body?.error ?? "That report was not recorded.",
-        });
+        setNotice({ faucetId, text: body?.error ?? "That report was not recorded." });
         return;
       }
 
@@ -204,36 +188,9 @@ export function FaucetBoard() {
     }
   }
 
-  async function ask(sol: number) {
-    if (!tracked) return;
-    setAsking(sol);
-    setGrant(null);
-    setGrantError(null);
-    try {
-      const r = await fetch("/api/dispense", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ address: tracked, sol }),
-      });
-      const body = await r.json().catch(() => null);
-      if (!r.ok) {
-        setGrantError(body?.error ?? "The dispenser did not answer.");
-        return;
-      }
-      setGrant({ sent: body.sent, explorerUrl: body.explorerUrl });
-      await load(tracked);
-    } catch {
-      setGrantError("Could not reach the dispenser. Nothing was sent.");
-    } finally {
-      setAsking(null);
-    }
-  }
-
   // A board with nothing to say and a board nobody is asking are the same
   // picture from the outside, and only one of them is our fault. Say which.
   const stalled = scheduler !== null && !scheduler.healthy;
-
-
   const humanRows = (rows ?? []).filter((r) => r.access === "human");
 
   return (
@@ -249,213 +206,10 @@ export function FaucetBoard() {
       )}
 
       {/* -----------------------------------------------------------------
-          The dispenser.
-
-          This is the product, so it goes first and it gets the room. The
-          earlier build put the treasury readout at the top and the way to
-          actually receive SOL three screens down, under a heading about
-          helping to fill the account — which read as a page whose main verb
-          was "go and beg a faucet on our behalf". It is the other way round:
-          the relay has been collecting for hours already, and the only thing
-          asked of a visitor is an address.
-          ----------------------------------------------------------------- */}
-      <section className="lift overflow-hidden rounded-2xl border border-edge">
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-          {/* Left: what is in the account, read off devnet. */}
-          <div className="border-b border-edge p-6 sm:p-8 lg:border-b-0 lg:border-r">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="t-label">In the shared account</h2>
-              {treasury && (
-                <a
-                  href={treasury.explorerUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-mono text-xs text-mist underline decoration-edge underline-offset-4 transition-colors hover:text-paper"
-                >
-                  {treasury.address.slice(0, 6)}…{treasury.address.slice(-6)}
-                </a>
-              )}
-            </div>
-
-            <p className="tnum mt-3 font-mono text-4xl leading-none text-paper sm:text-5xl">
-              {treasury?.sol == null ? (
-                <span className="text-mist">—</span>
-              ) : (
-                <>
-                  {treasury.sol.toFixed(3)}
-                  <span className="ml-2 text-lg text-mist">SOL</span>
-                </>
-              )}
-            </p>
-
-            {capacity && (
-              <dl className="mt-6 space-y-3 border-t border-edge pt-5">
-                <Line
-                  label="Ready to hand out"
-                  value={`${capacity.spendableSol.toFixed(3)} SOL`}
-                />
-                <Line
-                  label="Grants left at 0.1 SOL"
-                  value={String(capacity.maxGrants)}
-                />
-                <Line
-                  label="Refills at most"
-                  value={`${capacity.dailyCeilingSol.toFixed(1)} SOL/day`}
-                />
-                <Line label="Held back for fees" value={`${capacity.reservedSol.toFixed(2)} SOL`} quiet />
-              </dl>
-            )}
-
-            {capacity && capacity.maxGrants === 0 && capacity.daysToFillLargestTier !== null && (
-              <p className="mt-5 text-xs leading-relaxed text-mist">
-                Empty right now. At the published rates a full 3 SOL tier is about{" "}
-                <span className="tnum font-mono text-paper">
-                  {capacity.daysToFillLargestTier.toFixed(1)}
-                </span>{" "}
-                days of collecting away — and that is a ceiling, not a forecast. It assumes every
-                ask is granted, and most are refused.
-              </p>
-            )}
-
-            <p className="mt-5 text-xs leading-relaxed text-mist">
-              {treasury?.error
-                ? "The balance could not be read just now. The address above is still the one being filled."
-                : "Read from devnet every twenty seconds, not from our own log."}
-              {dispensed && dispensed.count > 0 && (
-                <>
-                  {" "}
-                  <span className="tnum font-mono text-paper">
-                    {dispensed.sol.toFixed(2)} SOL
-                  </span>{" "}
-                  has gone back out across{" "}
-                  <span className="tnum font-mono text-paper">{dispensed.count}</span>{" "}
-                  {dispensed.count === 1 ? "grant" : "grants"}.
-                </>
-              )}
-            </p>
-          </div>
-
-          {/* Right: the two steps that get SOL into someone's wallet. */}
-          <div className="p-6 sm:p-8">
-            <h2 className="t-label">Take a grant</h2>
-
-            <form onSubmit={track} className="mt-4 flex flex-col gap-2.5 sm:flex-row">
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Your devnet address"
-                spellCheck={false}
-                aria-label="Your devnet address"
-                className="min-w-0 flex-1 rounded-xl border border-edge bg-ink px-4 py-3 font-mono text-sm text-paper transition-colors placeholder:text-mist/60 focus:border-sky"
-              />
-              <button
-                type="submit"
-                className="brand-gradient shrink-0 rounded-xl px-5 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
-              >
-                {tracked ? "Update" : "Continue"}
-              </button>
-            </form>
-
-            <AnimatePresence>
-              {tracked && (
-                <motion.p
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-2.5 text-xs text-mist"
-                >
-                  Paying{" "}
-                  <span className="font-mono text-paper">
-                    {tracked.slice(0, 4)}…{tracked.slice(-4)}
-                  </span>
-                  . Held in this browser only.{" "}
-                  <button
-                    onClick={forget}
-                    className="underline decoration-edge underline-offset-4 transition-colors hover:text-paper"
-                  >
-                    Forget it
-                  </button>
-                </motion.p>
-              )}
-            </AnimatePresence>
-
-            <div className="mt-6 border-t border-edge pt-6">
-              <p className="text-sm text-mist">
-                {tracked
-                  ? "Pick a size. One grant per address every eight hours."
-                  : "Enter an address above and the sizes below become live."}
-              </p>
-
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-3">
-                {tiers.map((t) => {
-                  const short =
-                    treasury?.affordableTier != null && t > treasury.affordableTier;
-                  const off =
-                    !tracked || !treasury?.canDispense || short || asking !== null;
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => ask(t)}
-                      disabled={off}
-                      className="tnum rounded-xl border border-edge bg-ink px-3 py-3 font-mono text-sm transition-all enabled:hover:-translate-y-0.5 enabled:hover:border-aqua enabled:hover:text-aqua disabled:opacity-30"
-                      title={short ? "More than the treasury can cover right now" : undefined}
-                    >
-                      {asking === t ? "sending" : t}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {tracked && !treasury?.canDispense && !treasury?.error && (
-                <p className="mt-3 text-xs leading-relaxed text-mist">
-                  {treasury && !treasury.signerReady
-                    ? "The dispenser has no signing key configured, so nothing can be sent."
-                    : "Nothing to hand out yet. The account fills from the faucets, which are refusing us too — the board below says which one is closest to paying."}
-                </p>
-              )}
-
-              {grantError && (
-                <p role="status" className="mt-3 text-xs text-rose-300">
-                  {grantError}
-                </p>
-              )}
-
-              {grant && (
-                <motion.p
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  role="status"
-                  className="mt-3 rounded-xl border border-aqua/30 bg-aqua/5 px-3.5 py-2.5 text-xs text-aqua"
-                >
-                  Sent {grant.sent} SOL.{" "}
-                  <a
-                    href={grant.explorerUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline underline-offset-4"
-                  >
-                    See the transaction
-                  </a>
-                </motion.p>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* -----------------------------------------------------------------
-          The upstreams. Diagnostics, not a checklist.
+          The upstreams. What the console cannot tell you.
           ----------------------------------------------------------------- */}
       <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="t-label">Upstream faucets</h2>
-          <p className="text-xs text-mist">
-            What each one did on its last check, and how long ago that was.
-          </p>
-        </div>
-
-        <ul className="mt-5 grid gap-4 lg:grid-cols-2">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {(rows ?? []).map((f, i) => {
             const ready = f.yourNextEligibleAt !== null && f.yourNextEligibleAt <= Date.now();
             return (
@@ -522,11 +276,7 @@ export function FaucetBoard() {
                         href={f.claimUrl}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
-                          ready || !tracked
-                            ? "border border-edge text-paper hover:border-mist"
-                            : "border border-edge text-mist hover:text-paper"
-                        }`}
+                        className="rounded-lg border border-edge px-3.5 py-2 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
                       >
                         {tracked && !ready ? "Open anyway" : "Open it yourself"}
                       </a>
@@ -578,8 +328,62 @@ export function FaucetBoard() {
           })}
         </ul>
 
-        {rows === null && <p className="mt-5 text-sm text-mist">Reading the board…</p>}
+        {rows === null && <p className="text-sm text-mist">Reading the board…</p>}
       </section>
+
+      {/* -----------------------------------------------------------------
+          What the account can actually cover. A balance alone does not answer
+          "will it pay me, and if not, when", which is the only question
+          somebody who just saw a refusal has.
+          ----------------------------------------------------------------- */}
+      {treasury && capacity && (
+        <section className="lift rounded-2xl border border-edge p-6 sm:p-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h3 className="t-label">Account capacity</h3>
+            <a
+              href={treasury.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-xs text-mist underline decoration-edge underline-offset-4 transition-colors hover:text-paper"
+            >
+              {treasury.address.slice(0, 6)}…{treasury.address.slice(-6)}
+            </a>
+          </div>
+
+          <dl className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+            <Line label="Ready to hand out" value={`${capacity.spendableSol.toFixed(3)} SOL`} />
+            <Line label="Grants left at 0.1 SOL" value={String(capacity.maxGrants)} />
+            <Line label="Refills at most" value={`${capacity.dailyCeilingSol.toFixed(1)} SOL/day`} />
+            <Line label="Held back for fees" value={`${capacity.reservedSol.toFixed(2)} SOL`} quiet />
+          </dl>
+
+          {capacity.maxGrants === 0 && capacity.daysToFillLargestTier !== null && (
+            <p className="mt-5 max-w-2xl text-xs leading-relaxed text-mist">
+              Empty right now. At the published rates a full 3 SOL tier is about{" "}
+              <span className="tnum font-mono text-paper">
+                {capacity.daysToFillLargestTier.toFixed(1)}
+              </span>{" "}
+              days of collecting away — and that is a ceiling, not a forecast. It assumes every ask
+              is granted, and most are refused.
+            </p>
+          )}
+
+          <p className="mt-4 max-w-2xl text-xs leading-relaxed text-mist">
+            {treasury.error
+              ? "The balance could not be read just now. The address above is still the one being filled."
+              : "Read from devnet, not from our own log."}
+            {dispensed && dispensed.count > 0 && (
+              <>
+                {" "}
+                <span className="tnum font-mono text-paper">{dispensed.sol.toFixed(2)} SOL</span> has
+                gone back out across{" "}
+                <span className="tnum font-mono text-paper">{dispensed.count}</span>{" "}
+                {dispensed.count === 1 ? "grant" : "grants"}.
+              </>
+            )}
+          </p>
+        </section>
+      )}
 
       {/* -----------------------------------------------------------------
           Volunteering. Folded away on purpose.
@@ -591,10 +395,10 @@ export function FaucetBoard() {
           reader in fifty who wants to hold it open for the rest.
           ----------------------------------------------------------------- */}
       {treasury && humanRows.length > 0 && (
-        <details className="group rounded-2xl border border-edge bg-panel/40 open:bg-panel/60">
+        <details className="group rounded-2xl border border-edge bg-panel/40">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
             <div className="min-w-0">
-              <h2 className="t-h3 text-paper">Optional: top the account up by hand</h2>
+              <h3 className="t-h3 text-paper">Optional: top the account up by hand</h3>
               <p className="mt-1.5 text-sm text-mist">
                 For the two faucets a schedule cannot reach. Nobody has to do this to get a grant.
               </p>
@@ -667,9 +471,9 @@ export function FaucetBoard() {
               <li className="flex gap-3">
                 <span className="tnum shrink-0 font-mono text-xs text-sky">3</span>
                 <p className="text-sm leading-relaxed text-mist">
-                  Watch the balance on the left. It re-reads devnet every twenty seconds, so a grant
-                  that landed shows up on its own within a minute. If it does not move, the faucet
-                  refused — that is its answer, not a fault here.
+                  Watch the balance in the console at the top. It re-reads devnet every twenty
+                  seconds, so a grant that landed shows up on its own within a minute. If it does
+                  not move, the faucet refused — that is its answer, not a fault here.
                 </p>
               </li>
             </ol>
@@ -688,17 +492,9 @@ export function FaucetBoard() {
 }
 
 /** One label-and-figure row in the capacity readout. */
-function Line({
-  label,
-  value,
-  quiet = false,
-}: {
-  label: string;
-  value: string;
-  quiet?: boolean;
-}) {
+function Line({ label, value, quiet = false }: { label: string; value: string; quiet?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-4">
+    <div className="flex items-baseline justify-between gap-4 border-b border-edge pb-2.5">
       <dt className="text-xs text-mist">{label}</dt>
       <dd className={`tnum font-mono text-sm ${quiet ? "text-mist" : "text-paper"}`}>{value}</dd>
     </div>

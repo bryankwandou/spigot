@@ -33,6 +33,17 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+      <head>
+        {/* Marks the document as scripted before first paint, which is what
+            lets the scroll reveals default to visible. Without this a failed
+            bundle would leave every section below the console blank; with it,
+            the worst case is a page that simply appears. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "document.documentElement.classList.add('js')",
+          }}
+        />
+      </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

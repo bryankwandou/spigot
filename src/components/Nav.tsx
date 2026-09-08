@@ -62,7 +62,7 @@ export function Nav() {
             Source
           </a>
           <a
-            href="#board"
+            href="#top"
             className="brand-gradient rounded-full px-4 py-2 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
           >
             Get devnet SOL
