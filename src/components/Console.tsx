@@ -133,13 +133,21 @@ export function Console() {
         className="absolute inset-x-0 bottom-0 -z-10 h-64 bg-gradient-to-b from-transparent to-ink"
       />
 
-      <div className="flex flex-1 items-center justify-center px-5 pb-[clamp(0.5rem,2vh,1.75rem)] pt-[clamp(4.75rem,11vh,7rem)] sm:px-8">
-        <div className="flex w-full max-w-2xl flex-col gap-[clamp(0.7rem,2.4vh,1.6rem)]">
+      {/* An instrument panel, not a centred document. The control column carries
+          the whole transaction; the rail beside it carries the three numbers
+          that say whether the transaction will work. Splitting them 7/5 puts
+          the readings in peripheral vision while the hands stay on the left,
+          and stops the screen reading as a stack of centred paragraphs. Below
+          `lg` there is not enough width for two columns to be anything but
+          cramped, so it folds back to one. */}
+      <div className="flex flex-1 items-center px-5 pb-[clamp(0.5rem,2vh,1.75rem)] pt-[clamp(4.75rem,11vh,7rem)] sm:px-8">
+        <div className="mx-auto grid w-full max-w-2xl items-center gap-[clamp(0.7rem,2.4vh,1.6rem)] lg:max-w-5xl lg:grid-cols-12 lg:gap-x-12">
+          <div className="flex flex-col gap-[clamp(0.7rem,2.4vh,1.6rem)] lg:col-span-7">
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center"
+            className="text-center lg:text-left"
           >
             <p className="inline-flex items-center gap-2.5 rounded-full border border-edge bg-panel/70 px-3.5 py-1.5 text-xs text-mist">
               <span className="pulse-dot h-1.5 w-1.5 rounded-full bg-aqua" />
@@ -150,7 +158,7 @@ export function Console() {
               Devnet SOL, <span className="brand-text">already collected</span>.
             </h1>
 
-            <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-mist sm:text-base">
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-mist sm:text-base lg:mx-0">
               No sign-in, no human check, no hunting four faucets. Paste an address and confirm.
             </p>
           </motion.div>
@@ -192,7 +200,7 @@ export function Console() {
                     disabled={short}
                     aria-pressed={picked}
                     title={short ? "More than the account can cover right now" : undefined}
-                    className={`tnum rounded-xl border px-2 py-2.5 font-mono text-sm transition-all disabled:opacity-25 ${
+                    className={`tnum rounded-xl border px-2 py-2.5 font-mono text-sm transition-colors disabled:opacity-25 ${
                       picked
                         ? "border-aqua bg-aqua/10 text-aqua"
                         : "border-edge bg-ink text-mist enabled:hover:border-mist enabled:hover:text-paper"
@@ -211,7 +219,7 @@ export function Console() {
             <button
               type="submit"
               disabled={!ready}
-              className={`mt-[clamp(0.85rem,2vh,1.25rem)] w-full rounded-xl px-5 py-3.5 text-sm font-semibold transition-all ${
+              className={`mt-[clamp(0.85rem,2vh,1.25rem)] w-full rounded-xl px-5 py-3.5 text-sm font-semibold transition-[background-color,color,opacity,border-color] duration-200 ${
                 ready
                   ? "brand-gradient text-ink hover:opacity-90"
                   : "cursor-not-allowed border border-edge bg-panel text-mist"
@@ -270,14 +278,18 @@ export function Console() {
               ) : null}
             </AnimatePresence>
           </motion.form>
+          </div>
 
-          {/* Three figures, all read rather than asserted, in the space a
-              marketing strap would otherwise occupy. */}
+          {/* The rail. Three figures, all read off devnet rather than asserted,
+              standing where a marketing strap would otherwise go. Side by side
+              on a phone, stacked into a column of gauges once there is a rail
+              to stack them in. */}
+          <div className="flex flex-col gap-[clamp(0.7rem,2.4vh,1.6rem)] lg:col-span-5">
           <motion.dl
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-edge bg-edge"
+            className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-edge bg-edge lg:grid-cols-1"
           >
             <Cell label="In the account">
               {treasury?.sol == null ? (
@@ -308,7 +320,7 @@ export function Console() {
             </Cell>
           </motion.dl>
 
-          <p className="text-center text-xs text-mist">
+          <p className="text-center text-xs text-mist lg:text-left">
             {treasury ? (
               <a
                 href={treasury.explorerUrl}
@@ -323,6 +335,7 @@ export function Console() {
             )}{" "}
             · balance read off devnet every 20s
           </p>
+          </div>
         </div>
       </div>
 
@@ -341,9 +354,13 @@ export function Console() {
 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-panel px-3 py-3.5 text-center sm:px-4">
+    // Three across on a phone, where width is the scarce thing; a labelled row
+    // with the value flush right once it is a rail, where height is.
+    <div className="bg-panel px-3 py-3.5 text-center sm:px-4 lg:flex lg:items-baseline lg:justify-between lg:gap-4 lg:px-5 lg:py-4 lg:text-left">
       <dt className="t-label">{label}</dt>
-      <dd className="tnum mt-1.5 font-mono text-base text-paper sm:text-lg">{children}</dd>
+      <dd className="tnum mt-1.5 font-mono text-base text-paper sm:text-lg lg:mt-0 lg:text-xl">
+        {children}
+      </dd>
     </div>
   );
 }

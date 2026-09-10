@@ -407,7 +407,7 @@ export function FaucetBoard() {
               aria-hidden
               className="shrink-0 text-mist transition-transform duration-200 group-open:rotate-45"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
                 <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="1.5" />
               </svg>
             </span>

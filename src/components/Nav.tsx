@@ -27,12 +27,12 @@ export function Nav() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
+      className={`fixed inset-x-0 top-0 z-50 transition-[background-color,border-color,backdrop-filter] duration-300 ${
         past ? "glass border-b border-edge" : "border-b border-transparent"
       }`}
     >
       <div
-        className={`mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 transition-all duration-300 sm:px-8 ${
+        className={`mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 transition-[height] duration-300 sm:px-8 ${
           past ? "h-14" : "h-[4.5rem]"
         }`}
       >

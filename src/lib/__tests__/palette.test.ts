@@ -69,7 +69,12 @@ test("every colour utility names a token the theme declares", () => {
   const unknown: string[] = [];
 
   for (const { file, text } of componentSources()) {
-    for (const [cls, , name] of text.matchAll(COLOUR_UTILITY)) {
+    // Whatever sits inside square brackets is raw CSS, not a token reference:
+    // `transition-[background-color,border-color]` names two properties to
+    // animate and declares no colour at all. Blank the brackets out before
+    // scanning, or the guard reports the property list as three dead tokens.
+    const scanned = text.replace(/\[[^\]]*\]/g, "[]");
+    for (const [cls, , name] of scanned.matchAll(COLOUR_UTILITY)) {
       if (tokens.has(name) || BUILT_IN.has(name)) continue;
       unknown.push(`${file.slice(ROOT.length + 1)}: ${cls}`);
     }
