@@ -272,13 +272,21 @@ export function FaucetBoard() {
                 <div className="mt-5 border-t border-edge pt-4">
                   {f.access === "human" ? (
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* People kept reading this as a Spigot button that should
+                          fill the dispenser, then landing on a stranger's site.
+                          Name the destination so nobody is surprised by it. */}
+                      <p className="basis-full text-xs leading-relaxed text-mist">
+                        This faucet is run by someone else. The button opens their site in a new
+                        tab; you claim there yourself, it does not refill Spigot.
+                      </p>
                       <a
                         href={f.claimUrl}
                         target="_blank"
                         rel="noreferrer noopener"
                         className="rounded-lg border border-edge px-3.5 py-2 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
                       >
-                        {tracked && !ready ? "Open anyway" : "Open it yourself"}
+                        {tracked && !ready ? "Open anyway: " : "Go to "}
+                        {new URL(f.claimUrl).host}
                       </a>
 
                       {tracked && (

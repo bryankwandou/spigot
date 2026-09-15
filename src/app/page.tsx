@@ -1,53 +1,26 @@
+"use client";
+
 import { FaucetBoard } from "@/components/FaucetBoard";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { Faq } from "@/components/Faq";
 import { Console } from "@/components/Console";
 import { Reveal } from "@/components/motion/Reveal";
+import { useLang } from "@/components/Lang";
 
-const STEPS = [
-  {
-    n: "01",
-    t: "The relay asks, on a clock",
-    d: "Spigot calls the two upstreams that answer a program — the devnet RPC airdrop and a keyed Helius endpoint — from one address, asking each for what it actually grants. A grant buys that faucet its full published wait plus three minutes. A refusal buys an hour, because being told the pool is empty dispenses nothing and starts no cooldown.",
-  },
-  {
-    n: "02",
-    t: "What lands, lands in one account",
-    d: "Every grant goes to a single public address you can open in an explorer. Nothing is minted, nothing is bought, and nothing leaves except through the console at the top of this page.",
-  },
-  {
-    n: "03",
-    t: "You take a size, not a tour",
-    d: "Paste an address, press a size, get a signature back. One grant per address every eight hours, out of six fixed sizes. No sign-in, no captcha, no four tabs.",
-  },
-  {
-    n: "04",
-    t: "Every verdict carries its age",
-    d: "A board fed on someone else's cooldown cannot know what is true this second, and dressing it up as live would be inventing data. Each row prints what happened on the last check and how long ago. Past ten hours with no observation it stops claiming anything.",
-  },
-];
-
-const LIMITS = [
-  {
-    t: "It will not farm faucets",
-    d: "Rotating wallets and egress addresses to slip past a limit is the obvious way to make the numbers bigger, and the reason a project like this would deserve to be shut down. It also does not work: the RPC airdrop meters the calling IP, not the receiving wallet, so extra addresses buy nothing.",
-  },
-  {
-    t: "It will not invent supply",
-    d: "Whatever the probe collects sits in one public account and goes back out in six fixed sizes — never more than came in. When it is empty the board says so and points at the faucet most likely to pay instead.",
-  },
-  {
-    t: "It will not charge you",
-    d: "No token, no fee, no paid tier, nothing to connect a mainnet wallet to. Devnet SOL is given away free by design, and putting a price on it would be selling something that was never ours.",
-  },
-  {
-    t: "It will not ask for your key",
-    d: "Nothing here wants a seed phrase, a private key, or a signature. Pasting a public address is the entire interaction, and even that is optional.",
-  },
-];
-
+/**
+ * The page reads its words rather than holding them.
+ *
+ * It is a client component for one reason: the language is a runtime choice and
+ * the sections below carry most of the prose. Rendering them on the server in a
+ * language the reader did not pick, then hydrating into a different one, is the
+ * flicker this avoids. Next still renders this on the server for the first
+ * response, so a crawler with no JavaScript sees the whole page in English
+ * rather than an empty shell.
+ */
 export default function Home() {
+  const { t } = useLang();
+
   return (
     <>
       <Nav />
@@ -60,16 +33,44 @@ export default function Home() {
             --------------------------------------------------------------- */}
         <Console />
 
+        {/* ---------------------------------------------------------------
+            Then, before anything else: what the words mean. This sits above
+            the diagnostics on purpose. Readers kept reporting that they could
+            not tell what the page was offering, and the reason was that every
+            section under here spends jargon — devnet, faucet, airdrop — that
+            was never once defined. Explaining it costs one screen and is the
+            difference between a tool and a wall of terminology.
+            --------------------------------------------------------------- */}
+        <section
+          id="words"
+          className="relative scroll-mt-24 border-y border-edge bg-panel/30"
+        >
+          <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+            <Reveal>
+              <p className="t-label">{t.glossary.label}</p>
+              <h2 className="t-h2 mt-3 max-w-2xl">{t.glossary.title}</h2>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">{t.glossary.sub}</p>
+            </Reveal>
+
+            <dl className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+              {t.glossary.items.map((g, i) => (
+                <Reveal key={g.t} delay={i * 0.05}>
+                  <div className="border-t border-edge pt-5">
+                    <dt className="t-h3 text-paper">{g.t}</dt>
+                    <dd className="mt-2.5 text-sm leading-relaxed text-mist">{g.d}</dd>
+                  </div>
+                </Reveal>
+              ))}
+            </dl>
+          </div>
+        </section>
+
         {/* --------------------------------------------------------------- */}
         <section id="board" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
-            <p className="t-label">The board</p>
-            <h2 className="t-h2 mt-3 max-w-2xl">Where the SOL upstairs came from.</h2>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">
-              Four upstream faucets, and what each did on its last check. You do not need any of
-              this to take a grant — it is here for the day the account runs dry and you need to
-              know which door is still worth knocking on.
-            </p>
+            <p className="t-label">{t.board.label}</p>
+            <h2 className="t-h2 mt-3 max-w-2xl">{t.board.title}</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">{t.board.sub}</p>
           </Reveal>
 
           <Reveal delay={0.08} className="mt-10">
@@ -81,26 +82,29 @@ export default function Home() {
         <section id="how" className="relative scroll-mt-24 border-y border-edge bg-panel/30">
           <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
             <Reveal>
-              <p className="t-label">How it works</p>
-              <h2 className="t-h2 mt-3 max-w-2xl">Four moves, none of them yours.</h2>
+              <p className="t-label">{t.how.label}</p>
+              <h2 className="t-h2 mt-3 max-w-2xl">{t.how.title}</h2>
             </Reveal>
 
             <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-edge bg-edge sm:grid-cols-2">
-              {STEPS.map((s, i) => (
-                <Reveal key={s.n} delay={i * 0.06}>
-                  <article className="lift relative h-full overflow-hidden p-7 sm:p-8">
-                    <span
-                      aria-hidden
-                      className="tnum pointer-events-none absolute -right-2 -top-6 font-mono text-[7rem] leading-none text-paper/[0.035]"
-                    >
-                      {s.n}
-                    </span>
-                    <p className="tnum font-mono text-xs text-sky">{s.n}</p>
-                    <h3 className="t-h3 mt-3 text-paper">{s.t}</h3>
-                    <p className="mt-3 max-w-md text-sm leading-relaxed text-mist">{s.d}</p>
-                  </article>
-                </Reveal>
-              ))}
+              {t.how.steps.map((s, i) => {
+                const n = String(i + 1).padStart(2, "0");
+                return (
+                  <Reveal key={s.t} delay={i * 0.06}>
+                    <article className="lift relative h-full overflow-hidden p-7 sm:p-8">
+                      <span
+                        aria-hidden
+                        className="tnum pointer-events-none absolute -right-2 -top-6 font-mono text-[7rem] leading-none text-paper/[0.035]"
+                      >
+                        {n}
+                      </span>
+                      <p className="tnum font-mono text-xs text-sky">{n}</p>
+                      <h3 className="t-h3 mt-3 text-paper">{s.t}</h3>
+                      <p className="mt-3 max-w-md text-sm leading-relaxed text-mist">{s.d}</p>
+                    </article>
+                  </Reveal>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -108,17 +112,13 @@ export default function Home() {
         {/* --------------------------------------------------------------- */}
         <section id="limits" className="mx-auto max-w-6xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
-            <p className="t-label">Limits</p>
-            <h2 className="t-h2 mt-3 max-w-2xl">What Spigot will not do.</h2>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">
-              A relay that quietly broke the rules it claims to respect would be worth less than
-              nothing. These are the four lines it does not cross, written down so they can be
-              checked against the source.
-            </p>
+            <p className="t-label">{t.limits.label}</p>
+            <h2 className="t-h2 mt-3 max-w-2xl">{t.limits.title}</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">{t.limits.sub}</p>
           </Reveal>
 
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
-            {LIMITS.map((l, i) => (
+            {t.limits.items.map((l, i) => (
               <Reveal key={l.t} delay={i * 0.06}>
                 <article className="lift h-full rounded-2xl border border-edge p-7">
                   <div className="flex items-start gap-3">
@@ -138,8 +138,8 @@ export default function Home() {
         {/* --------------------------------------------------------------- */}
         <section id="faq" className="mx-auto max-w-4xl scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
-            <p className="t-label">FAQ</p>
-            <h2 className="t-h2 mt-3">Questions, answered.</h2>
+            <p className="t-label">{t.faq.label}</p>
+            <h2 className="t-h2 mt-3">{t.faq.title}</h2>
           </Reveal>
           <Reveal delay={0.06}>
             <Faq />
@@ -154,17 +154,14 @@ export default function Home() {
           />
           <div className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 sm:py-32">
             <Reveal>
-              <h2 className="t-h2">Stop keeping four cooldowns in your head.</h2>
-              <p className="mt-4 text-sm leading-relaxed text-mist">
-                One address, one press, one signature back. The relay has been asking on your
-                behalf since before you opened this page.
-              </p>
+              <h2 className="t-h2">{t.cta.title}</h2>
+              <p className="mt-4 text-sm leading-relaxed text-mist">{t.cta.sub}</p>
               <div className="mt-8 flex flex-wrap justify-center gap-3">
                 <a
                   href="#top"
                   className="brand-gradient rounded-full px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
                 >
-                  Get devnet SOL
+                  {t.cta.primary}
                 </a>
                 <a
                   href="https://github.com/bryankwandou/spigot"
@@ -172,7 +169,7 @@ export default function Home() {
                   rel="noreferrer noopener"
                   className="rounded-full border border-edge px-6 py-3 text-sm font-medium text-mist transition-colors hover:border-mist hover:text-paper"
                 >
-                  Read the source
+                  {t.cta.secondary}
                 </a>
               </div>
             </Reveal>

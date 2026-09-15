@@ -2,36 +2,12 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-
-const QA = [
-  {
-    q: "Do I have to visit a faucet at all?",
-    a: "Not for the ordinary case. Paste an address into the console at the top of this page, pick a size, confirm — the dispenser signs a transfer out of the shared account and hands you back a transaction. The faucet-opening buttons further down exist for one job only: the two upstreams behind a sign-in cannot be called by a schedule, so when the account runs low a person can top it up by hand. That is a volunteer path, not the way you get funded.",
-  },
-  {
-    q: "Where does the SOL come from?",
-    a: "The same public faucets you would have opened yourself. Spigot calls the two that answer a program — the devnet RPC airdrop and a keyed Helius endpoint — on their own published windows, from one address, and parks what it receives in one account anyone can look up. Nothing is minted here and nothing is bought.",
-  },
-  {
-    q: "Is this a way around the rate limits?",
-    a: "No, and it would not work if it tried. The RPC airdrop meters the calling IP rather than the receiving wallet, so extra addresses buy nothing. One identity, one request per window, the published limit plus three minutes of headroom. The value is that you stop tracking four cooldown timers, not that more SOL exists.",
-  },
-  {
-    q: "What happens when the account is empty?",
-    a: "The board says so in plain words and points you at whichever upstream is most likely to pay right now. It does not queue you, it does not promise a refill time it cannot know, and it never shows a balance it has not read off devnet in the last twenty seconds.",
-  },
-  {
-    q: "What does it cost?",
-    a: "Nothing. No token, no fee, no tier, no mainnet wallet to connect. Devnet SOL is given away for free by design and putting a price on it would be selling something that was never ours.",
-  },
-  {
-    q: "Do you want my private key?",
-    a: "No. Pasting a public address is the entire interaction and even that is optional — the board reads fine without one. Nothing here asks for a seed phrase, a key, or a signature.",
-  },
-];
+import { useLang } from "./Lang";
 
 export function Faq() {
+  const { t } = useLang();
   const [open, setOpen] = useState<number | null>(0);
+  const QA = t.faq.items;
 
   return (
     <ul className="mt-10 border-t border-edge">

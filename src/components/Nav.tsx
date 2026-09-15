@@ -2,13 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Wordmark } from "./Mark";
+import { LangToggle, useLang } from "./Lang";
 
-const LINKS = [
-  { href: "#board", label: "Live board" },
-  { href: "#how", label: "How it works" },
-  { href: "#limits", label: "Limits" },
-  { href: "#faq", label: "FAQ" },
-];
+// Hrefs are fixed; the words come from whichever language is on.
+const LINKS = ["board", "how", "limits", "faq"] as const;
 
 /**
  * The bar stays; its background only arrives once there is content behind it
@@ -16,6 +13,7 @@ const LINKS = [
  * screen a single image instead of a strip and a picture.
  */
 export function Nav() {
+  const { t } = useLang();
   const [past, setPast] = useState(false);
 
   useEffect(() => {
@@ -36,36 +34,37 @@ export function Nav() {
           past ? "h-14" : "h-[4.5rem]"
         }`}
       >
-        <a href="#top" className="shrink-0" aria-label="Spigot, back to top">
+        <a href="#top" className="shrink-0" aria-label={t.nav.backToTop}>
           <Wordmark />
         </a>
 
-        <nav className="hidden items-center gap-7 md:flex" aria-label="Sections">
-          {LINKS.map((l) => (
+        <nav className="hidden items-center gap-7 md:flex" aria-label={t.nav.sections}>
+          {LINKS.map((k) => (
             <a
-              key={l.href}
-              href={l.href}
+              key={k}
+              href={`#${k}`}
               className="text-sm text-mist transition-colors hover:text-paper"
             >
-              {l.label}
+              {t.nav[k]}
             </a>
           ))}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
+          <LangToggle />
           <a
             href="https://github.com/bryankwandou/spigot"
             target="_blank"
             rel="noreferrer noopener"
             className="hidden text-sm text-mist transition-colors hover:text-paper sm:block"
           >
-            Source
+            {t.nav.source}
           </a>
           <a
             href="#top"
             className="brand-gradient rounded-full px-4 py-2 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
           >
-            Get devnet SOL
+            {t.nav.cta}
           </a>
         </div>
       </div>
