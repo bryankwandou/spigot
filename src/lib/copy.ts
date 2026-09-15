@@ -53,7 +53,7 @@ export const COPY = {
       addressPlaceholder: "Paste your devnet address here",
       amountLabel: "How much",
       amountNote: "One request per address, every 8 hours",
-      amountTooBig: "More than the account holds right now",
+      amountTooBig: "More than a fair share of the account right now",
 
       submit: "Send it to me",
       sending: "Sending…",
@@ -233,7 +233,7 @@ export const COPY = {
       addressPlaceholder: "Tempel alamat devnet Anda di sini",
       amountLabel: "Berapa banyak",
       amountNote: "Satu permintaan per alamat, setiap 8 jam",
-      amountTooBig: "Lebih besar dari isi rekening saat ini",
+      amountTooBig: "Lebih besar dari jatah adil rekening saat ini",
 
       submit: "Kirim ke saya",
       sending: "Sedang mengirim…",

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TIERS, isTier, RESERVE_LAMPORTS } from "../treasury.ts";
+import { TIERS, isTier, RESERVE_LAMPORTS, fairTier } from "../treasury.ts";
 import { PROBE_INTERVAL_MS } from "../faucets.ts";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -50,6 +50,15 @@ test("a turn lasts as long as the refill window", () => {
   // Handing out faster than the faucet fills would empty the account in favour
   // of whoever wrote the first loop.
   assert.ok(PROBE_INTERVAL_MS >= 8 * 60 * 60 * 1000);
+});
+
+test("one grant cannot take the whole stock", () => {
+  const sol = (n: number) => n * LAMPORTS_PER_SOL;
+  assert.equal(fairTier(sol(0.78)), 0.1, "0.78 SOL used to offer 0.5 to one person");
+  assert.equal(fairTier(sol(3)), 0.5);
+  assert.equal(fairTier(sol(12)), 3);
+  assert.equal(fairTier(sol(0.15)), 0.1, "too little to split still pays the smallest size");
+  assert.equal(fairTier(sol(0.05)), null);
 });
 
 test("the smallest tier is worth asking for", () => {

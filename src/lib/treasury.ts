@@ -49,6 +49,25 @@ export function isTier(v: unknown): v is Tier {
  */
 export const RESERVE_LAMPORTS = 0.02 * LAMPORTS_PER_SOL;
 
+/**
+ * How many people a balance must still be able to serve after one grant.
+ *
+ * Inflow is about one SOL a day, so offering the largest tier the balance
+ * covers let a single visitor take the whole stock and left everyone after
+ * them facing an empty account. Capping one grant at a quarter of what is
+ * spendable keeps a small balance useful for several people instead of one.
+ */
+export const MIN_SHARES = 4;
+
+/** Largest tier one person may take from this balance, or null if none. */
+export function fairTier(spendableLamports: number): Tier | null {
+  const share = spendableLamports / MIN_SHARES;
+  const fair = [...TIERS].reverse().find((t) => t * LAMPORTS_PER_SOL <= share);
+  if (fair !== undefined) return fair;
+  // Too little to split: still hand out the smallest size while it is covered.
+  return TIERS[0] * LAMPORTS_PER_SOL <= spendableLamports ? TIERS[0] : null;
+}
+
 export function treasuryKey(): PublicKey {
   return new PublicKey(TREASURY_ADDRESS);
 }
@@ -81,7 +100,7 @@ export type TreasuryState = {
   lamports: number | null;
   sol: number | null;
   explorerUrl: string;
-  /** Largest tier the balance can currently cover, or null if none can be. */
+  /** Largest tier one person may take right now (see `fairTier`), or null. */
   affordableTier: number | null;
   /**
    * Whether a valid signing key is loaded, reported separately from the
@@ -107,7 +126,7 @@ export async function treasuryState(conn: Connection): Promise<TreasuryState> {
   try {
     const lamports = await conn.getBalance(treasuryKey(), "confirmed");
     const spendable = Math.max(0, lamports - RESERVE_LAMPORTS);
-    const affordable = [...TIERS].reverse().find((t) => t * LAMPORTS_PER_SOL <= spendable) ?? null;
+    const affordable = fairTier(spendable);
     const signerReady = treasurySigner() !== null;
     return {
       ...base,

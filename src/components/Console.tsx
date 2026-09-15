@@ -73,9 +73,11 @@ export function Console() {
 
   // Default to the largest size this account can actually cover, so the button
   // is armed on arrival instead of asking for a decision nobody has an opinion
-  // about yet.
+  // about yet. Re-clamp when the balance drops under a size already picked:
+  // otherwise the button stays armed for a grant the server will refuse.
   useEffect(() => {
-    if (tier === null && affordable !== null) setTier(affordable);
+    if (affordable === null) return;
+    if (tier === null || tier > affordable) setTier(affordable);
   }, [tier, affordable]);
 
   const valid = address.trim().length >= 32 && address.trim().length <= 44;

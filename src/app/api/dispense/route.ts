@@ -91,7 +91,7 @@ export async function POST(req: Request) {
   // Checked here as well as in the client so the answer is truthful even when
   // the request did not come from our own page.
   const spendable = state.lamports - RESERVE_LAMPORTS;
-  if (sol * LAMPORTS_PER_SOL > spendable) {
+  if (sol * LAMPORTS_PER_SOL > spendable || state.affordableTier === null || sol > state.affordableTier) {
     return NextResponse.json(
       {
         error:
