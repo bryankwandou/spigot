@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import {
-  probeable,
-  isProbeDue,
-  nextProbeAt,
-  endpointFor,
-  askLadder,
-  retriesSmallerAfterQuota,
-} from "@/lib/faucets";
+import { probeable, isProbeDue, nextProbeAt, endpointFor } from "@/lib/faucets";
+import { runLadder } from "@/lib/probe";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 import { redact } from "@/lib/redact";
@@ -196,53 +190,9 @@ async function tick(req: Request) {
 
     const conn = new Connection(endpoint, "confirmed");
 
-    // Ask for the published grant, and when that is refused ask for less before
-    // giving up on the window. A pool too thin for two SOL is routinely still
-    // good for a tenth of one, and the upstream refuses both with the same
-    // sentence, so a single fixed ask cannot tell a thin pool from an empty one.
-    //
-    // A quota refusal ends the ladder immediately. That answer is about the
-    // allowance rather than the amount, and asking for a smaller slice of an
-    // allowance we have already spent is exactly the pointless hammering the
-    // cooldown exists to prevent.
-    //
-    // Anything left over is one retry on a transient error, as agreed: a
-    // connection that fell over is not a refusal and should not cost the whole
-    // eight-hour window.
-    let outcome: Outcome = "failed";
-    let detail: string | null = null;
-    let quotaRetried = false;
-    let asked = false;
-    // Each faucet gets its own budget, counted from its own first ask.
-    //
-    // Sharing one deadline across the loop meant the first faucet's ladder
-    // spent the whole allowance and every faucet behind it was passed over --
-    // and then written down as "failed", an answer nobody had given. That is a
-    // fabricated record in a log whose entire worth is that it is not
-    // fabricated, and it poisoned the cooldown clock with a refusal that never
-    // happened. Nothing is recorded now unless it was really asked.
-    const deadline = Date.now() + LADDER_BUDGET_MS;
-    for (const sol of askLadder(f)) {
-      if (Date.now() > deadline) break;
-      asked = true;
-      let a = await attempt(conn, sol);
-      if (a.outcome === "failed") a = await attempt(conn, sol);
-      outcome = a.outcome;
-      detail = a.detail;
-      if (outcome === "granted") break;
-      if (outcome === "rate_limited") {
-        if (!retriesSmallerAfterQuota(f) || quotaRetried) break;
-        // The allowance is published in SOL and our opening ask was all of it.
-        // Drop straight to the smallest rung — the largest slice that has a
-        // real chance of fitting whatever is left — and ask exactly once more.
-        quotaRetried = true;
-        const smallest = askLadder(f).at(-1)!;
-        const a = await attempt(conn, smallest);
-        outcome = a.outcome;
-        detail = a.detail;
-        break;
-      }
-    }
+    // The ladder itself lives in `probe.ts` so it can be tested without a
+    // network. Its `asked` flag is the guard that matters here.
+    const { asked, outcome, detail } = await runLadder(f, (sol) => attempt(conn, sol), Date.now() + LADDER_BUDGET_MS);
 
     // A faucet that ran out of clock before its first ask has told us nothing.
     // Leave the log alone and let the next knock ask it properly.

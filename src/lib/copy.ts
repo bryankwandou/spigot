@@ -132,6 +132,7 @@ export const COPY = {
           ? `${n} requests in the last day. None of them were granted — every one was refused upstream, and the refusal is quoted below.`
           : `${n} requests in the last day, ${granted} of them granted.`,
       more: (n: number) => `Show ${n} more`,
+      onChain: "View the transaction on Solana Explorer",
       outcomes: {
         granted: "granted",
         rate_limited: "our quota was spent",
@@ -328,6 +329,7 @@ export const COPY = {
           ? `${n} permintaan dalam sehari terakhir. Tidak satu pun dikabulkan — semuanya ditolak pihak hulu, dan penolakannya dikutip di bawah.`
           : `${n} permintaan dalam sehari terakhir, ${granted} dikabulkan.`,
       more: (n: number) => `Tampilkan ${n} lagi`,
+      onChain: "Lihat transaksinya di Solana Explorer",
       outcomes: {
         granted: "dikabulkan",
         rate_limited: "jatah kami sudah habis",

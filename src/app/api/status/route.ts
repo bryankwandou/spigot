@@ -27,7 +27,7 @@ import { Connection } from "@solana/web3.js";
 import { treasuryState, TIERS } from "@/lib/treasury";
 import { capacityOf } from "@/lib/capacity";
 import type { Outcome } from "@/lib/store";
-import { redact } from "@/lib/redact";
+import { said } from "@/lib/said";
 
 export const dynamic = "force-dynamic";
 
@@ -164,7 +164,7 @@ export async function GET(req: Request) {
       at: e.at,
       outcome: e.outcome,
       source: e.source,
-      said: e.detail === null ? null : redact(e.detail),
+      said: e.detail === null ? null : said(e.detail),
     })),
   });
 }
