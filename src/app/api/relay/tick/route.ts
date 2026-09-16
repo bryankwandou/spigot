@@ -3,6 +3,7 @@ import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { probeable, isProbeDue, nextProbeAt, endpointFor, askLadder } from "@/lib/faucets";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
+import { redact } from "@/lib/redact";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -34,9 +35,14 @@ function authorized(req: Request): boolean {
   return accepted.some((t) => header === `Bearer ${t}`);
 }
 
-/** First line only. Faucet errors arrive with stack traces we have no use for. */
+/**
+ * First line only, with any key stripped out.
+ *
+ * Faucet errors arrive with stack traces we have no use for, and they quote the
+ * URL they failed against — which for one provider carries our key.
+ */
 function firstLine(msg: string): string {
-  return msg.split("\n")[0].slice(0, 300);
+  return redact(msg.split("\n")[0]).slice(0, 300);
 }
 
 /**

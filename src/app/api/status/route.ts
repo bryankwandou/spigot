@@ -27,6 +27,7 @@ import { Connection } from "@solana/web3.js";
 import { treasuryState, TIERS } from "@/lib/treasury";
 import { capacityOf } from "@/lib/capacity";
 import type { Outcome } from "@/lib/store";
+import { redact } from "@/lib/redact";
 
 export const dynamic = "force-dynamic";
 
@@ -147,5 +148,23 @@ export async function GET(req: Request) {
     dispensed: await dispenseTotals(),
     address,
     faucets,
+    // Every probe of the last day in the upstream's own words.
+    //
+    // This was being written down and read by nobody. A board that says "dry"
+    // is asking to be taken on trust; the sentence the faucet actually answered
+    // with, stamped with the minute it was said, is the thing that can be
+    // checked. It is also the only way to tell a refusal apart from a
+    // deployment that is quietly failing to call anything at all -- which is a
+    // mistake this project has already made once.
+    //
+    // Reports from people claiming by hand carry no detail and are marked as
+    // theirs, so a first-hand observation is never mistaken for ours.
+    log: events.slice(0, 200).map((e) => ({
+      faucetId: e.faucetId,
+      at: e.at,
+      outcome: e.outcome,
+      source: e.source,
+      said: e.detail === null ? null : redact(e.detail),
+    })),
   });
 }
