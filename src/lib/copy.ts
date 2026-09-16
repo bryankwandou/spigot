@@ -34,6 +34,7 @@ export const COPY = {
 
     nav: {
       board: "Faucet status",
+      log: "Refill log",
       how: "How it works",
       limits: "Rules",
       faq: "Questions",
@@ -116,6 +117,27 @@ export const COPY = {
       label: "Faucet status",
       title: "Where the SOL comes from",
       sub: "Four faucets, and what each one did the last time we checked. You do not need any of this to get coins. It only matters on the day the shared account runs empty and you want to know which door is still worth knocking on.",
+    },
+
+    log: {
+      label: "Refill log",
+      title: "Every ask, in the faucet's own words",
+      sub: "The board above tells you a faucet is dry. This is how you check that for yourself. Each line is one request this deployment really made, the minute it was made, and the sentence the upstream answered with. Nothing here is our summary of events.",
+      loading: "Reading the log…",
+      unreachable: "The log could not be read just now. That is worth knowing too.",
+      empty: "Nothing asked in the last day. If that stays true, the scheduler is the fault, not the faucets.",
+      noWords: "No message was recorded for this attempt.",
+      counted: (n: number, granted: number) =>
+        granted === 0
+          ? `${n} requests in the last day. None of them were granted — every one was refused upstream, and the refusal is quoted below.`
+          : `${n} requests in the last day, ${granted} of them granted.`,
+      more: (n: number) => `Show ${n} more`,
+      outcomes: {
+        granted: "granted",
+        rate_limited: "our quota was spent",
+        dry: "the pool was empty",
+        failed: "the call did not complete",
+      },
     },
 
     how: {
@@ -214,6 +236,7 @@ export const COPY = {
 
     nav: {
       board: "Status faucet",
+      log: "Catatan pengisian",
       how: "Cara kerjanya",
       limits: "Aturan",
       faq: "Pertanyaan",
@@ -290,6 +313,27 @@ export const COPY = {
       label: "Status faucet",
       title: "Asal SOL-nya dari mana",
       sub: "Empat faucet, dan apa yang terjadi pada masing-masing saat terakhir kami cek. Anda tidak perlu membaca ini untuk mengambil koin. Bagian ini baru berguna kalau rekening bersama kosong dan Anda ingin tahu pintu mana yang masih layak diketuk.",
+    },
+
+    log: {
+      label: "Catatan pengisian",
+      title: "Setiap permintaan, dengan kalimat asli faucet-nya",
+      sub: "Papan di atas bilang sebuah faucet kering. Di sinilah Anda memeriksanya sendiri. Tiap baris adalah satu permintaan yang benar-benar dikirim, menit persisnya, dan kalimat yang dijawab pihak hulu. Tidak ada rangkuman versi kami di sini.",
+      loading: "Membaca catatan…",
+      unreachable: "Catatan tidak bisa dibaca saat ini. Itu pun layak Anda ketahui.",
+      empty: "Tidak ada permintaan dalam sehari terakhir. Kalau ini menetap, yang salah penjadwalnya, bukan faucet-nya.",
+      noWords: "Tidak ada pesan yang tercatat untuk percobaan ini.",
+      counted: (n: number, granted: number) =>
+        granted === 0
+          ? `${n} permintaan dalam sehari terakhir. Tidak satu pun dikabulkan — semuanya ditolak pihak hulu, dan penolakannya dikutip di bawah.`
+          : `${n} permintaan dalam sehari terakhir, ${granted} dikabulkan.`,
+      more: (n: number) => `Tampilkan ${n} lagi`,
+      outcomes: {
+        granted: "dikabulkan",
+        rate_limited: "jatah kami sudah habis",
+        dry: "kolamnya kosong",
+        failed: "panggilan tidak selesai",
+      },
     },
 
     how: {

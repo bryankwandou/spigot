@@ -4,6 +4,7 @@ import { FaucetBoard } from "@/components/FaucetBoard";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { Faq } from "@/components/Faq";
+import { RefillLog } from "@/components/RefillLog";
 import { Console } from "@/components/Console";
 import { Reveal } from "@/components/motion/Reveal";
 import { useLang } from "@/components/Lang";
@@ -75,6 +76,24 @@ export default function Home() {
 
           <Reveal delay={0.08} className="mt-10">
             <FaucetBoard />
+          </Reveal>
+        </section>
+
+        {/* ---------------------------------------------------------------
+            The evidence, directly under the claim it backs. A board that
+            reports "dry" is asking to be taken on trust, and the log is what
+            replaces trust with something a reader can check: the request, the
+            minute, and the upstream's own sentence.
+            --------------------------------------------------------------- */}
+        <section id="log" className="mx-auto max-w-4xl scroll-mt-24 px-5 pb-20 sm:px-8 sm:pb-28">
+          <Reveal>
+            <p className="t-label">{t.log.label}</p>
+            <h2 className="t-h2 mt-3 max-w-2xl">{t.log.title}</h2>
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-mist">{t.log.sub}</p>
+          </Reveal>
+
+          <Reveal delay={0.08} className="mt-10">
+            <RefillLog />
           </Reveal>
         </section>
 

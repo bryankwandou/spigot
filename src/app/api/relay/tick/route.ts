@@ -13,17 +13,29 @@ import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/l
 import { redact } from "@/lib/redact";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+// Each faucet gets its own ask budget, so the ceiling has to cover all of them
+// plus the balance read. Thirty seconds was sized for a single fixed ask and
+// would now cut the second faucet off mid-ladder.
+export const maxDuration = 60;
 
 const RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 
 /**
  * How long the asks may run before the route stops starting new ones.
  *
- * `maxDuration` is thirty seconds and the balance still has to be read and
- * written afterwards. Twenty leaves room for both.
+ * Per faucet, counted from its own first ask. Two of these plus the balance
+ * read sit inside `maxDuration` with room to spare.
  */
 const LADDER_BUDGET_MS = 20 * 1000;
+
+/**
+ * When to stop starting faucets altogether.
+ *
+ * A per-faucet budget bounds each ladder but not their sum. This is the outer
+ * fence: past it the route stops opening new work and finishes cleanly rather
+ * than being killed mid-probe with nothing written down.
+ */
+const TICK_BUDGET_MS = 45 * 1000;
 
 /**
  * Two schedulers call this, and either is allowed to.
@@ -169,6 +181,13 @@ async function tick(req: Request) {
       continue;
     }
 
+    // Out of clock for the tick as a whole. Say so rather than asking half a
+    // question; the next knock is twenty minutes away.
+    if (Date.now() - now > TICK_BUDGET_MS) {
+      skipped.push({ faucetId: f.id, readyAt: now });
+      continue;
+    }
+
     const last = await lastProbe(f.id);
     if (!isProbeDue(f, last, now)) {
       skipped.push({ faucetId: f.id, readyAt: nextProbeAt(f, last) });
@@ -193,12 +212,19 @@ async function tick(req: Request) {
     let outcome: Outcome = "failed";
     let detail: string | null = null;
     let quotaRetried = false;
+    let asked = false;
+    // Each faucet gets its own budget, counted from its own first ask.
+    //
+    // Sharing one deadline across the loop meant the first faucet's ladder
+    // spent the whole allowance and every faucet behind it was passed over --
+    // and then written down as "failed", an answer nobody had given. That is a
+    // fabricated record in a log whose entire worth is that it is not
+    // fabricated, and it poisoned the cooldown clock with a refusal that never
+    // happened. Nothing is recorded now unless it was really asked.
+    const deadline = Date.now() + LADDER_BUDGET_MS;
     for (const sol of askLadder(f)) {
-      // The ladder must not cost the function its own deadline. Running out of
-      // wall clock mid-ladder would lose the record of what the upstream said,
-      // and an unrecorded probe is one the cooldown cannot see. Stop with what
-      // we have and let the next knock, twenty minutes out, carry on.
-      if (Date.now() - now > LADDER_BUDGET_MS) break;
+      if (Date.now() > deadline) break;
+      asked = true;
       let a = await attempt(conn, sol);
       if (a.outcome === "failed") a = await attempt(conn, sol);
       outcome = a.outcome;
@@ -216,6 +242,13 @@ async function tick(req: Request) {
         detail = a.detail;
         break;
       }
+    }
+
+    // A faucet that ran out of clock before its first ask has told us nothing.
+    // Leave the log alone and let the next knock ask it properly.
+    if (!asked) {
+      skipped.push({ faucetId: f.id, readyAt: now });
+      continue;
     }
 
     await recordProbe(f.id, outcome, detail);

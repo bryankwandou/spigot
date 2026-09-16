@@ -5,7 +5,7 @@ import { Wordmark } from "./Mark";
 import { LangToggle, useLang } from "./Lang";
 
 // Hrefs are fixed; the words come from whichever language is on.
-const LINKS = ["board", "how", "limits", "faq"] as const;
+const LINKS = ["board", "log", "how", "limits", "faq"] as const;
 
 /**
  * The bar stays; its background only arrives once there is content behind it
