@@ -9,6 +9,7 @@ type Entry = {
   outcome: "granted" | "rate_limited" | "dry" | "failed";
   source: "probe" | "report";
   said: string | null;
+  asked?: number[];
 };
 
 /**
@@ -81,6 +82,13 @@ export function RefillLog() {
                 {new Date(e.at).toISOString().slice(0, 16).replace("T", " ")} UTC
               </time>
             </div>
+
+            {e.asked && e.asked.length > 0 && (
+              // How hard the ask tried. A refusal at the published size and a
+              // refusal at every size down to a tenth are the same outcome and
+              // very different effort, and only this line tells them apart.
+              <p className="mt-2 text-xs text-mist">{t.log.asked(e.asked)}</p>
+            )}
 
             {e.said === null ? (
               <p className="mt-3 text-sm text-mist">{t.log.noWords}</p>

@@ -160,7 +160,12 @@ async function tick(req: Request) {
   await migrate();
 
   const now = Date.now();
-  const probed: Array<{ faucetId: string; outcome: Outcome; detail: string | null }> = [];
+  const probed: Array<{
+    faucetId: string;
+    outcome: Outcome;
+    detail: string | null;
+    asked: number[];
+  }> = [];
   const skipped: Array<{ faucetId: string; readyAt: number }> = [];
   const unconfigured: string[] = [];
 
@@ -192,7 +197,11 @@ async function tick(req: Request) {
 
     // The ladder itself lives in `probe.ts` so it can be tested without a
     // network. Its `asked` flag is the guard that matters here.
-    const { asked, outcome, detail } = await runLadder(f, (sol) => attempt(conn, sol), Date.now() + LADDER_BUDGET_MS);
+    const { asked, outcome, detail, tried } = await runLadder(
+      f,
+      (sol) => attempt(conn, sol),
+      Date.now() + LADDER_BUDGET_MS,
+    );
 
     // A faucet that ran out of clock before its first ask has told us nothing.
     // Leave the log alone and let the next knock ask it properly.
@@ -201,8 +210,11 @@ async function tick(req: Request) {
       continue;
     }
 
-    await recordProbe(f.id, outcome, detail);
-    probed.push({ faucetId: f.id, outcome, detail });
+    // The sizes go down with the answer. Without them a refusal at two SOL and
+    // a refusal at every rung from two down to a tenth are the same row, and
+    // only one of those is diligence.
+    await recordProbe(f.id, outcome, detail, tried);
+    probed.push({ faucetId: f.id, outcome, detail, asked: tried });
   }
 
   // Read the account after the attempts rather than trusting them. A confirmed

@@ -165,6 +165,7 @@ export async function GET(req: Request) {
       outcome: e.outcome,
       source: e.source,
       said: e.detail === null ? null : said(e.detail),
+      asked: e.asked,
     })),
   });
 }

@@ -15,7 +15,7 @@ const NOW = 1_700_000_000_000;
 const HOUR = 60 * 60 * 1000;
 
 function ev(at: number, outcome: Outcome, faucetId = "f1"): Event {
-  return { faucetId, at, outcome, source: "probe", detail: null };
+  return { faucetId, at, outcome, source: "probe", detail: null, asked: [] };
 }
 
 test("says nothing when it has seen nothing", () => {

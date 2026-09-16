@@ -133,6 +133,10 @@ export const COPY = {
           : `${n} requests in the last day, ${granted} of them granted.`,
       more: (n: number) => `Show ${n} more`,
       onChain: "View the transaction on Solana Explorer",
+      asked: (sizes: number[]) =>
+        sizes.length === 1
+          ? `Asked for ${sizes[0]} SOL.`
+          : `Asked for ${sizes.slice(0, -1).join(", ")} and ${sizes.at(-1)} SOL, in that order.`,
       outcomes: {
         granted: "granted",
         rate_limited: "our quota was spent",
@@ -330,6 +334,10 @@ export const COPY = {
           : `${n} permintaan dalam sehari terakhir, ${granted} dikabulkan.`,
       more: (n: number) => `Tampilkan ${n} lagi`,
       onChain: "Lihat transaksinya di Solana Explorer",
+      asked: (sizes: number[]) =>
+        sizes.length === 1
+          ? `Diminta ${sizes[0]} SOL.`
+          : `Diminta ${sizes.slice(0, -1).join(", ")} lalu ${sizes.at(-1)} SOL, berurutan.`,
       outcomes: {
         granted: "dikabulkan",
         rate_limited: "jatah kami sudah habis",

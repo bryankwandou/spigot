@@ -24,6 +24,13 @@ export type Event = {
   outcome: Outcome;
   source: "probe" | "report";
   detail: string | null;
+  /**
+   * Sizes asked for on this probe, largest first.
+   *
+   * Empty means the row predates the column, not that nothing was asked. A
+   * probe that asked nothing is never written down at all.
+   */
+  asked: number[];
 };
 
 function db() {
@@ -48,6 +55,20 @@ export async function migrate(): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS probes_faucet_at ON probes (faucet_id, at DESC)`;
+
+  // The sizes asked for, in order, as a comma-separated list.
+  //
+  // Added after the fact, because its absence turned out to be the gap in the
+  // record that mattered most. A row saying "dry" is identical whether we asked
+  // once for two SOL and walked away -- which is the bug that produced
+  // twenty-two useless refusals in a row -- or worked all the way down to a
+  // tenth and was refused at every rung. Those are opposite levels of effort
+  // and the log could not tell them apart.
+  //
+  // Rows written before this exists keep a null here, which reads as "not
+  // recorded" rather than "asked nothing". Backfilling a guess would be
+  // inventing evidence.
+  await sql`ALTER TABLE probes ADD COLUMN IF NOT EXISTS asked TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS reports (
@@ -104,10 +125,13 @@ export async function recordProbe(
   faucetId: string,
   outcome: Outcome,
   detail: string | null = null,
+  asked: number[] = [],
 ): Promise<void> {
   const sql = db();
+  const sizes = asked.length > 0 ? asked.join(",") : null;
   await sql`
-    INSERT INTO probes (faucet_id, outcome, detail) VALUES (${faucetId}, ${outcome}, ${detail})
+    INSERT INTO probes (faucet_id, outcome, detail, asked)
+    VALUES (${faucetId}, ${outcome}, ${detail}, ${sizes})
   `;
 }
 
@@ -161,14 +185,29 @@ export async function recordReport(
   `;
 }
 
+/**
+ * The stored ask list, back into numbers.
+ *
+ * Anything unreadable becomes an empty list rather than a zero or a NaN. The
+ * column is evidence, and a row whose sizes cannot be read should say so by
+ * showing nothing, not by showing a number nobody asked for.
+ */
+function parseAsked(raw: unknown): number[] {
+  if (raw === null || raw === undefined) return [];
+  return String(raw)
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
 /** Everything observed about a faucet since a moment, from both logs. */
 export async function eventsSince(sinceMs: number): Promise<Event[]> {
   const sql = db();
   const since = new Date(sinceMs).toISOString();
   const rows = (await sql`
-    SELECT faucet_id, at, outcome, 'probe' AS source, detail FROM probes WHERE at >= ${since}
+    SELECT faucet_id, at, outcome, 'probe' AS source, detail, asked FROM probes WHERE at >= ${since}
     UNION ALL
-    SELECT faucet_id, at, outcome, 'report' AS source, NULL AS detail FROM reports WHERE at >= ${since}
+    SELECT faucet_id, at, outcome, 'report' AS source, NULL AS detail, NULL AS asked FROM reports WHERE at >= ${since}
     ORDER BY at DESC
   `) as Array<Record<string, unknown>>;
 
@@ -178,6 +217,7 @@ export async function eventsSince(sinceMs: number): Promise<Event[]> {
     outcome: String(r.outcome) as Outcome,
     source: String(r.source) as "probe" | "report",
     detail: r.detail === null ? null : String(r.detail),
+    asked: parseAsked(r.asked),
   }));
 }
 
