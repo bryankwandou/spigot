@@ -93,6 +93,17 @@ export type Faucet = {
    * shared endpoint and spend somebody else's quota.
    */
   keyEnv?: string;
+  /**
+   * Whether the published allowance is "per day" and resets on the calendar
+   * rather than a rolling window from the last request.
+   *
+   * This matters more than it looks. Waiting a fixed day from each refusal
+   * walks the probe forward: refused at 09:00 and we return at 09:03 tomorrow,
+   * refused again and 09:06 the day after. The allowance meanwhile came back at
+   * midnight and sat unspent for nine hours every single day, and the drift
+   * only ever grows. A calendar quota deserves a calendar clock.
+   */
+  quotaResetsDaily?: boolean;
 };
 
 export const FAUCETS: Faucet[] = [
@@ -124,6 +135,7 @@ export const FAUCETS: Faucet[] = [
     note: "Own quota, tied to a free API key rather than to your IP. Needs HELIUS_API_KEY set.",
     rpcTemplate: "https://devnet.helius-rpc.com/?api-key=KEY",
     keyEnv: "HELIUS_API_KEY",
+    quotaResetsDaily: true,
   },
   {
     id: "solana-official-web",
@@ -202,7 +214,48 @@ export function probeIntervalFor(f: Faucet, outcome: Outcome | null): number {
  */
 export function nextProbeAt(f: Faucet, last: LastProbe | null): number {
   if (last === null) return 0;
-  return last.at + probeIntervalFor(f, last.outcome);
+  const rolling = last.at + probeIntervalFor(f, last.outcome);
+
+  // A daily allowance that we really did spend comes back on the calendar, not
+  // a day after we happened to ask. Returning at the reset instead of a rolling
+  // day is both earlier and stable: without it the probe drifts a few minutes
+  // later after every refusal and the fresh allowance goes unspent for however
+  // many hours the drift has accumulated.
+  //
+  // The retry floor still applies. Refused at 23:50, the reset is ten minutes
+  // away and asking then would be reading the upstream's clock more precisely
+  // than we are entitled to, so the hour is waited out regardless.
+  const spentDailyQuota = f.quotaResetsDaily && last.outcome === "rate_limited";
+  if (!spentDailyQuota) return rolling;
+
+  const reset = nextUtcMidnight(last.at) + COOLDOWN_MARGIN_MS;
+  return Math.max(Math.min(rolling, reset), last.at + RETRY_INTERVAL_MS);
+}
+
+/** First instant of the next UTC day after `at`. Where daily quotas refill. */
+function nextUtcMidnight(at: number): number {
+  const d = new Date(at);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+/**
+ * Sizes to ask for, largest first, when the published grant is refused.
+ *
+ * The airdrop is not a switch. A contested pool that cannot spare two SOL can
+ * very often spare a tenth of one, and the RPC answers a too-large ask with the
+ * same "faucet has run dry" sentence it uses when it has nothing at all — so a
+ * single fixed ask reads a partial pool as a dead one and walks away. That is
+ * the shape of the twenty-two consecutive refusals this project recorded while
+ * asking for two SOL every time and never once asking for less.
+ *
+ * Smaller is still worth having. A tenth of a SOL is the smallest grant the
+ * board hands out, so anything down to that figure turns into a real claim for
+ * a real person rather than a rounding error.
+ */
+export function askLadder(f: Faucet): number[] {
+  return [f.expectedSol, 1, 0.5, 0.25, 0.1].filter(
+    (sol, i, all) => sol <= f.expectedSol && all.indexOf(sol) === i,
+  );
 }
 
 export function isProbeDue(f: Faucet, last: LastProbe | null, now = Date.now()): boolean {

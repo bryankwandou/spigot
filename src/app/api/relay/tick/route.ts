@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { probeable, isProbeDue, nextProbeAt, endpointFor } from "@/lib/faucets";
+import { probeable, isProbeDue, nextProbeAt, endpointFor, askLadder } from "@/lib/faucets";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 
@@ -8,6 +8,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const RPC = process.env.SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
+
+/**
+ * How long the asks may run before the route stops starting new ones.
+ *
+ * `maxDuration` is thirty seconds and the balance still has to be read and
+ * written afterwards. Twenty leaves room for both.
+ */
+const LADDER_BUDGET_MS = 20 * 1000;
 
 /**
  * Two schedulers call this, and either is allowed to.
@@ -156,15 +164,32 @@ async function tick(req: Request) {
 
     const conn = new Connection(endpoint, "confirmed");
 
-    // Two attempts, as agreed, and no more. The second exists because a
-    // transient RPC error is not the same as a refusal and should not cost the
-    // whole eight-hour window. A genuine "run dry" is an answer, not a hiccup,
-    // so it is taken at its word and not retried.
-    let { outcome, detail } = await attempt(conn, f.expectedSol);
-    if (outcome === "failed") {
-      const second = await attempt(conn, f.expectedSol);
-      outcome = second.outcome;
-      detail = second.detail;
+    // Ask for the published grant, and when that is refused ask for less before
+    // giving up on the window. A pool too thin for two SOL is routinely still
+    // good for a tenth of one, and the upstream refuses both with the same
+    // sentence, so a single fixed ask cannot tell a thin pool from an empty one.
+    //
+    // A quota refusal ends the ladder immediately. That answer is about the
+    // allowance rather than the amount, and asking for a smaller slice of an
+    // allowance we have already spent is exactly the pointless hammering the
+    // cooldown exists to prevent.
+    //
+    // Anything left over is one retry on a transient error, as agreed: a
+    // connection that fell over is not a refusal and should not cost the whole
+    // eight-hour window.
+    let outcome: Outcome = "failed";
+    let detail: string | null = null;
+    for (const sol of askLadder(f)) {
+      // The ladder must not cost the function its own deadline. Running out of
+      // wall clock mid-ladder would lose the record of what the upstream said,
+      // and an unrecorded probe is one the cooldown cannot see. Stop with what
+      // we have and let the next knock, twenty minutes out, carry on.
+      if (Date.now() - now > LADDER_BUDGET_MS) break;
+      let a = await attempt(conn, sol);
+      if (a.outcome === "failed") a = await attempt(conn, sol);
+      outcome = a.outcome;
+      detail = a.detail;
+      if (outcome === "granted" || outcome === "rate_limited") break;
     }
 
     await recordProbe(f.id, outcome, detail);
