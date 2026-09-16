@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { probeable, isProbeDue, nextProbeAt, endpointFor, askLadder } from "@/lib/faucets";
+import {
+  probeable,
+  isProbeDue,
+  nextProbeAt,
+  endpointFor,
+  askLadder,
+  retriesSmallerAfterQuota,
+} from "@/lib/faucets";
 import { treasuryKey, treasuryState } from "@/lib/treasury";
 import { migrate, lastProbe, recordProbe, isConfigured, type Outcome } from "@/lib/store";
 import { redact } from "@/lib/redact";
@@ -185,6 +192,7 @@ async function tick(req: Request) {
     // eight-hour window.
     let outcome: Outcome = "failed";
     let detail: string | null = null;
+    let quotaRetried = false;
     for (const sol of askLadder(f)) {
       // The ladder must not cost the function its own deadline. Running out of
       // wall clock mid-ladder would lose the record of what the upstream said,
@@ -195,7 +203,19 @@ async function tick(req: Request) {
       if (a.outcome === "failed") a = await attempt(conn, sol);
       outcome = a.outcome;
       detail = a.detail;
-      if (outcome === "granted" || outcome === "rate_limited") break;
+      if (outcome === "granted") break;
+      if (outcome === "rate_limited") {
+        if (!retriesSmallerAfterQuota(f) || quotaRetried) break;
+        // The allowance is published in SOL and our opening ask was all of it.
+        // Drop straight to the smallest rung — the largest slice that has a
+        // real chance of fitting whatever is left — and ask exactly once more.
+        quotaRetried = true;
+        const smallest = askLadder(f).at(-1)!;
+        const a = await attempt(conn, smallest);
+        outcome = a.outcome;
+        detail = a.detail;
+        break;
+      }
     }
 
     await recordProbe(f.id, outcome, detail);

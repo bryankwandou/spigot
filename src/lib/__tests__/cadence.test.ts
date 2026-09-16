@@ -10,6 +10,7 @@ import {
   PROBE_INTERVAL_MS,
   RETRY_INTERVAL_MS,
   askLadder,
+  retriesSmallerAfterQuota,
 } from "../faucets.ts";
 
 const NOW = 1_700_000_000_000;
@@ -90,6 +91,18 @@ test("a refused ask is followed by a smaller one before the window is given up",
   // A provider that publishes one SOL is never asked for two: the greedy ask is
   // refused outright rather than trimmed, which made a working source look dead.
   assert.ok(Math.max(...askLadder(helius)) <= helius.expectedSol);
+});
+
+test("an allowance published in SOL gets one smaller ask, a plain quota gets none", () => {
+  // Helius answers "a limit of 1 SOL per project per day" and our opening ask
+  // is that entire figure, so any part of it already spent refuses the whole
+  // request and we walk away from an allowance with most of itself left.
+  assert.equal(retriesSmallerAfterQuota(helius), true);
+  assert.ok(askLadder(helius).at(-1)! < helius.expectedSol, "there is a smaller rung to drop to");
+
+  // The RPC airdrop meters on egress and says nothing about a SOL allowance.
+  // Asking it again in a smaller voice is just hammering.
+  assert.equal(retriesSmallerAfterQuota(rpc), false);
 });
 
 test("a provider is only ever asked for what it publishes", () => {

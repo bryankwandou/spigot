@@ -252,6 +252,24 @@ function nextUtcMidnight(at: number): number {
  * board hands out, so anything down to that figure turns into a real claim for
  * a real person rather than a rounding error.
  */
+/**
+ * Whether a quota refusal is worth one smaller ask before the window is given up.
+ *
+ * Normally it is not: "you have spent your allowance" is an answer about the
+ * allowance, not about the amount, and asking again in a smaller voice is the
+ * hammering the cooldown exists to prevent.
+ *
+ * A daily allowance denominated in SOL is the exception, and Helius states it
+ * outright — "a limit of 1 SOL per project per day". Our opening ask is that
+ * whole figure, so any part of it already spent refuses the request outright
+ * and we walk away from an allowance that still had most of itself left. A
+ * tenth of a SOL is a genuinely different question, and asking it once is one
+ * extra request against a limit published in SOL rather than in requests.
+ */
+export function retriesSmallerAfterQuota(f: Faucet): boolean {
+  return f.quotaResetsDaily === true;
+}
+
 export function askLadder(f: Faucet): number[] {
   return [f.expectedSol, 1, 0.5, 0.25, 0.1].filter(
     (sol, i, all) => sol <= f.expectedSol && all.indexOf(sol) === i,
