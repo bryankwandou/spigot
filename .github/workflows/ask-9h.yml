@@ -1,0 +1,54 @@
+name: Ask every 9 hours
+
+# One direct request to the refill endpoint, on a nine-hour schedule or on
+# demand with `gh workflow run ask-9h.yml`. It sits beside the long-running
+# hourly prober, so a dropped schedule there still leaves this one. The
+# endpoint keeps its own clock and refuses anything early, so an extra knock
+# costs nothing.
+#
+# Cron cannot count nine hours across midnight: "0 */9" fires at 00, 09 and
+# 18 UTC, so the last gap of the day is six hours.
+
+on:
+  schedule:
+    - cron: "0 */9 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: faucet-ask-9h
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ask:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask the endpoint once
+        env:
+          RELAY_URL: ${{ secrets.RELAY_URL }}
+          RELAY_TOKEN: ${{ secrets.RELAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELAY_URL:-}" ] || [ -z "${RELAY_TOKEN:-}" ]; then
+            echo "RELAY_URL or RELAY_TOKEN is empty. The probe cannot run."
+            exit 1
+          fi
+
+          echo "Asking at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          code=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST "$RELAY_URL/api/relay/tick" \
+            -H "Authorization: Bearer $RELAY_TOKEN" \
+            -H "Content-Type: application/json") || code="000"
+
+          echo "Endpoint responded $code"
+          cat response.json || true
+          echo
+
+          case "$code" in
+            200|429) ;;
+            *) exit 1 ;;
+          esac
